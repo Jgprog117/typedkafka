@@ -33,158 +33,26 @@ Requires Python 3.9+.
 
 ## Quick Start
 
-### Producer
-
 ```python
 from typedkafka import KafkaProducer
 
 with KafkaProducer({"bootstrap.servers": "localhost:9092"}) as producer:
     producer.send("my-topic", b"Hello, Kafka!")
     producer.send_json("events", {"user_id": 123, "action": "click"})
-    producer.send_string("logs", "Application started")
     producer.flush()
 ```
-
-### Consumer
 
 ```python
 from typedkafka import KafkaConsumer
 
-config = {
-    "bootstrap.servers": "localhost:9092",
-    "group.id": "my-consumer-group",
-    "auto.offset.reset": "earliest"
-}
-
-with KafkaConsumer(config) as consumer:
+with KafkaConsumer({"bootstrap.servers": "localhost:9092", "group.id": "my-group"}) as consumer:
     consumer.subscribe(["my-topic"])
     for msg in consumer:
-        data = msg.value_as_json()
-        print(f"Received: {data}")
+        print(msg.value_as_json())
         consumer.commit(msg)
 ```
 
-### Transactions
-
-```python
-from typedkafka import KafkaProducer
-
-producer = KafkaProducer({
-    "bootstrap.servers": "localhost:9092",
-    "transactional.id": "my-txn-id",
-})
-producer.init_transactions()
-
-with producer.transaction():
-    producer.send("topic", b"msg1")
-    producer.send("topic", b"msg2")
-    # Commits on success, aborts on exception
-```
-
-### Async
-
-```python
-from typedkafka.aio import AsyncKafkaProducer, AsyncKafkaConsumer
-
-async with AsyncKafkaProducer({"bootstrap.servers": "localhost:9092"}) as producer:
-    await producer.send("topic", b"async message")
-    await producer.send_json("events", {"id": 1})
-    await producer.flush()
-
-async with AsyncKafkaConsumer(config) as consumer:
-    consumer.subscribe(["topic"])
-    async for msg in consumer:
-        process(msg)
-```
-
-### Retry
-
-```python
-from typedkafka.retry import retry, RetryPolicy
-
-@retry(max_attempts=3, backoff_base=1.0)
-def send_with_retry(producer, data):
-    producer.send_json("events", data)
-    producer.flush()
-
-# Or use RetryPolicy programmatically
-policy = RetryPolicy(max_attempts=5, backoff_base=0.5)
-policy.execute(producer.send, "topic", b"value")
-```
-
-### Serializers
-
-```python
-from typedkafka.serializers import JsonSerializer, AvroSerializer
-
-json_ser = JsonSerializer()
-data = json_ser.serialize("topic", {"user_id": 123})
-
-# Avro with Schema Registry (requires typedkafka[avro])
-avro_ser = AvroSerializer("http://localhost:8081", schema_str)
-data = avro_ser.serialize("users", {"id": 123, "name": "Alice"})
-```
-
-### Batch Send
-
-```python
-producer.send_batch("events", [
-    (b"event1", b"key1"),
-    (b"event2", b"key2"),
-    (b"event3", None),
-])
-producer.flush()
-```
-
-## Testing Utilities
-
-Mock implementations for testing without a running Kafka broker:
-
-```python
-from typedkafka.testing import MockProducer, MockConsumer
-
-def test_my_producer():
-    producer = MockProducer()
-    my_function(producer)
-    assert len(producer.messages["events"]) == 1
-
-def test_my_consumer():
-    consumer = MockConsumer()
-    consumer.add_json_message("events", {"user_id": 123})
-    result = process_messages(consumer)
-    assert result is not None
-
-def test_transactions():
-    producer = MockProducer()
-    producer.init_transactions()
-    with producer.transaction():
-        producer.send("topic", b"transactional msg")
-    assert len(producer.messages["topic"]) == 1
-```
-
-## Type-Safe Configuration
-
-Fluent builders with validation and IDE autocomplete:
-
-```python
-from typedkafka import ProducerConfig, ConsumerConfig, KafkaProducer
-
-config = (ProducerConfig()
-    .bootstrap_servers("localhost:9092")
-    .acks("all")
-    .compression("gzip")
-    .linger_ms(10)
-    .build())
-
-producer = KafkaProducer(config)
-```
-
-Invalid values raise `ValueError` immediately:
-
-```python
-ProducerConfig().acks("invalid")      # ValueError
-ProducerConfig().compression("brotli") # ValueError
-```
+See the [`examples/`](examples/) directory for more: transactions, async, retry, serializers, batch send, testing mocks, and config builders.
 
 ## Development
 

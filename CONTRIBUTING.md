@@ -113,6 +113,7 @@ typedkafka/
 │   ├── aio.py           # Async producer and consumer
 │   ├── retry.py         # Retry decorator and policy
 │   └── serializers.py   # Pluggable serializer framework
+├── examples/            # Usage examples
 ├── tests/               # Test files
 ├── .github/             # GitHub Actions workflows
 └── docs/                # Documentation (if applicable)
