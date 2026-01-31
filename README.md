@@ -20,6 +20,15 @@ typedkafka provides a modern Python interface to Apache Kafka with comprehensive
 - Type-safe configuration builders with validation
 - Admin client for topic management
 
+## Why typedkafka?
+
+confluent-kafka is fast and reliable, but working with it in Python often means guessing at argument types, cross-referencing C library docs, and getting cryptic error messages. typedkafka fixes that:
+
+- **IDE autocomplete that works** — full type hints and parameter docs on every method, so you're not guessing at argument types or return values
+- **Clear error messages** — a proper exception hierarchy instead of cryptic confluent-kafka errors
+- **Test without a broker** — MockProducer and MockConsumer let you write unit tests without Docker or flaky integration setups
+- **Less boilerplate** — transactions, async, retry, and serialization are built in instead of requiring manual wiring
+
 ## Installation
 
 ```bash
