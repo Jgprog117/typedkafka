@@ -1,5 +1,7 @@
 """Exception classes for typedkafka with clear, actionable error messages."""
 
+from typing import Optional
+
 
 class KafkaError(Exception):
     """
@@ -41,7 +43,7 @@ class ProducerError(KafkaError):
         ...     # Handle retry logic or dead-letter queue
     """
 
-    def __init__(self, message: str, original_error: Exception | None = None):
+    def __init__(self, message: str, original_error: Optional[Exception] = None):
         """
         Initialize a ProducerError.
 
@@ -77,7 +79,7 @@ class ConsumerError(KafkaError):
         ...     # Handle reconnection or alerting
     """
 
-    def __init__(self, message: str, original_error: Exception | None = None):
+    def __init__(self, message: str, original_error: Optional[Exception] = None):
         """
         Initialize a ConsumerError.
 
@@ -113,7 +115,7 @@ class SerializationError(KafkaError):
     """
 
     def __init__(
-        self, message: str, value: object = None, original_error: Exception | None = None
+        self, message: str, value: object = None, original_error: Optional[Exception] = None
     ):
         """
         Initialize a SerializationError.

@@ -5,7 +5,7 @@ Provides fluent API for building Kafka configurations with IDE autocomplete
 and validation, preventing common configuration errors.
 """
 
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 
 class ProducerConfig:
@@ -67,7 +67,7 @@ class ProducerConfig:
         self._config["client.id"] = client_id
         return self
 
-    def acks(self, acks: Literal["0", "1", "all"] | int) -> "ProducerConfig":
+    def acks(self, acks: Union[Literal["0", "1", "all"], int]) -> "ProducerConfig":
         """
         Set the number of acknowledgments required.
 
@@ -267,9 +267,7 @@ class ConsumerConfig:
         self._config["client.id"] = client_id
         return self
 
-    def auto_offset_reset(
-        self, reset: Literal["earliest", "latest", "none"]
-    ) -> "ConsumerConfig":
+    def auto_offset_reset(self, reset: Literal["earliest", "latest", "none"]) -> "ConsumerConfig":
         """
         Set behavior when no initial offset exists.
 

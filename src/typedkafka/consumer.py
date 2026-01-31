@@ -13,9 +13,9 @@ try:
     from confluent_kafka import KafkaError as ConfluentKafkaError
     from confluent_kafka import Message
 except ImportError:
-    ConfluentConsumer = None  # type: ignore
-    ConfluentKafkaError = None  # type: ignore
-    Message = None  # type: ignore
+    ConfluentConsumer = None
+    ConfluentKafkaError = None
+    Message = None
 
 from typedkafka.exceptions import ConsumerError, SerializationError
 
@@ -71,7 +71,7 @@ class KafkaMessage:
             >>> print(f"Received: {text}")
         """
         try:
-            return self.value.decode(encoding)
+            return self.value.decode(encoding)  # type: ignore[no-any-return]
         except (UnicodeDecodeError, AttributeError) as e:
             raise SerializationError(
                 f"Failed to decode message value as {encoding} string: {e}",
@@ -124,7 +124,7 @@ class KafkaMessage:
         if self.key is None:
             return None
         try:
-            return self.key.decode(encoding)
+            return self.key.decode(encoding)  # type: ignore[no-any-return]
         except (UnicodeDecodeError, AttributeError) as e:
             raise SerializationError(
                 f"Failed to decode message key as {encoding} string: {e}",
@@ -282,9 +282,7 @@ class KafkaConsumer:
             if raw_msg is None:
                 return None
             if raw_msg.error():
-                raise ConsumerError(
-                    f"Consumer error: {raw_msg.error()}"
-                )
+                raise ConsumerError(f"Consumer error: {raw_msg.error()}")
             return KafkaMessage(raw_msg)
         except ConsumerError:
             raise

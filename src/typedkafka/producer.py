@@ -12,8 +12,8 @@ try:
     from confluent_kafka import Producer as ConfluentProducer
 except ImportError:
     # Make confluent-kafka optional for documentation/type checking
-    ConfluentProducer = None  # type: ignore
-    ConfluentKafkaError = None  # type: ignore
+    ConfluentProducer = None
+    ConfluentKafkaError = None
 
 from typedkafka.exceptions import ProducerError, SerializationError
 
@@ -261,7 +261,7 @@ class KafkaProducer:
             ...     print(f"Warning: {remaining} messages not delivered after 5 seconds")
         """
         try:
-            return self._producer.flush(timeout=timeout)
+            return self._producer.flush(timeout=timeout)  # type: ignore[no-any-return]
         except Exception as e:
             raise ProducerError(f"Flush failed: {e}", original_error=e) from e
 
