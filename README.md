@@ -71,6 +71,17 @@ MIT License - see LICENSE file for details.
 
 ## Changelog
 
+### 0.3.2
+
+- Move code examples from README into standalone `examples/` directory
+- Pin all CI/CD actions to commit SHAs for supply chain security
+- Switch PyPI publishing to Trusted Publishers (OIDC) instead of API tokens
+- Add `py.typed` marker file for PEP 561 compliance
+
+### 0.3.1
+
+- Update README, CONTRIBUTING, and SECURITY docs for v0.3.0 features
+
 ### 0.3.0
 
 - Transaction support: `init_transactions()`, `begin/commit/abort_transaction()`, `transaction()` context manager
