@@ -115,8 +115,10 @@ typedkafka/
 │   └── serializers.py   # Pluggable serializer framework
 ├── examples/            # Usage examples
 ├── tests/               # Test files
+├── docs/                # MkDocs documentation site
 ├── .github/             # GitHub Actions workflows
-└── docs/                # Documentation (if applicable)
+├── Makefile             # Common dev tasks (make test, make lint, etc.)
+└── CHANGELOG.md         # Release history
 ```
 
 ## Questions?

@@ -1,0 +1,57 @@
+site_name: typedkafka
+site_description: A well-documented, fully type-hinted Kafka client for Python
+site_url: https://Jgprog117.github.io/typedkafka
+repo_url: https://github.com/Jgprog117/typedkafka
+repo_name: Jgprog117/typedkafka
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - API Reference:
+      - Producer: api/producer.md
+      - Consumer: api/consumer.md
+      - Async: api/async.md
+      - Admin: api/admin.md
+      - Config: api/config.md
+      - Serializers: api/serializers.md
+      - Retry: api/retry.md
+      - Testing: api/testing.md
+      - Exceptions: api/exceptions.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.snippets
+  - admonition
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: false
+            show_root_heading: true
+            heading_level: 2

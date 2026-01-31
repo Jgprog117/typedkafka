@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "typedkafka"
-version = "0.3.2"
+version = "0.3.3"
 description = "A well-documented, fully type-hinted Kafka client for Python"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -46,7 +46,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/Jgprog117/typedkafka"
-Documentation = "https://github.com/Jgprog117/typedkafka#readme"
+Documentation = "https://Jgprog117.github.io/typedkafka"
 Repository = "https://github.com/Jgprog117/typedkafka"
 Issues = "https://github.com/Jgprog117/typedkafka/issues"
 
@@ -60,6 +60,11 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
 ]
 
 [tool.hatch.build.targets.wheel]
