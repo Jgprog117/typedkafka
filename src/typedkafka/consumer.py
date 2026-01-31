@@ -13,9 +13,9 @@ try:
     from confluent_kafka import KafkaError as ConfluentKafkaError
     from confluent_kafka import Message
 except ImportError:
-    ConfluentConsumer = None
-    ConfluentKafkaError = None
-    Message = None
+    ConfluentConsumer = None  # type: ignore[assignment,misc]
+    ConfluentKafkaError = None  # type: ignore[assignment,misc]
+    Message = None  # type: ignore[assignment,misc]
 
 from typedkafka.exceptions import ConsumerError, SerializationError
 
@@ -318,9 +318,9 @@ class KafkaConsumer:
         """
         try:
             if message:
-                self._consumer.commit(message=message._message, asynchronous=asynchronous)
+                self._consumer.commit(message=message._message, asynchronous=asynchronous)  # type: ignore[call-overload]
             else:
-                self._consumer.commit(asynchronous=asynchronous)
+                self._consumer.commit(asynchronous=asynchronous)  # type: ignore[call-overload]
         except Exception as e:
             raise ConsumerError(
                 f"Failed to commit offsets: {e}",

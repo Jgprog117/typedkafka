@@ -12,8 +12,8 @@ try:
     from confluent_kafka import Producer as ConfluentProducer
 except ImportError:
     # Make confluent-kafka optional for documentation/type checking
-    ConfluentProducer = None
-    ConfluentKafkaError = None
+    ConfluentProducer = None  # type: ignore[assignment,misc]
+    ConfluentKafkaError = None  # type: ignore[assignment,misc]
 
 from typedkafka.exceptions import ProducerError, SerializationError
 
@@ -138,7 +138,7 @@ class KafkaProducer:
                 topic=topic,
                 value=value,
                 key=key,
-                partition=partition,
+                partition=partition,  # type: ignore[arg-type]
                 on_delivery=on_delivery,
             )
             # Poll to trigger callbacks and handle backpressure

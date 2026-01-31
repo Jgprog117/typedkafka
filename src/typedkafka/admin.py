@@ -11,8 +11,8 @@ try:
     from confluent_kafka.admin import AdminClient as ConfluentAdminClient
     from confluent_kafka.admin import NewTopic
 except ImportError:
-    ConfluentAdminClient = None
-    NewTopic = None
+    ConfluentAdminClient = None  # type: ignore[assignment,misc]
+    NewTopic = None  # type: ignore[assignment,misc]
 
 from typedkafka.exceptions import KafkaError
 
