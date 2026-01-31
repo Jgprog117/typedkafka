@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "typedkafka"
-version = "0.2.0"
+version = "0.3.0"
 description = "A well-documented, fully type-hinted Kafka client for Python"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -51,9 +51,13 @@ Repository = "https://github.com/Jgprog117/typedkafka"
 Issues = "https://github.com/Jgprog117/typedkafka/issues"
 
 [project.optional-dependencies]
+avro = [
+    "confluent-kafka[avro]>=2.0.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
 ]

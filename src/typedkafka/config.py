@@ -7,6 +7,10 @@ and validation, preventing common configuration errors.
 
 from typing import Any, Literal, Union
 
+_VALID_ACKS = {"0", "1", "all", 0, 1, -1}
+_VALID_COMPRESSIONS = {"none", "gzip", "snappy", "lz4", "zstd"}
+_VALID_OFFSET_RESETS = {"earliest", "latest", "none"}
+
 
 class ProducerConfig:
     """
@@ -85,6 +89,10 @@ class ProducerConfig:
             >>> config = ProducerConfig().acks("1")     # Leader only
             >>> config = ProducerConfig().acks("0")     # No acknowledgment
         """
+        if acks not in _VALID_ACKS:
+            raise ValueError(
+                f"Invalid acks value: {acks!r}. Must be one of: '0', '1', 'all', 0, 1, -1"
+            )
         self._config["acks"] = acks
         return self
 
@@ -104,6 +112,11 @@ class ProducerConfig:
             >>> config = ProducerConfig().compression("gzip")
             >>> config = ProducerConfig().compression("zstd")  # Best compression
         """
+        if compression_type not in _VALID_COMPRESSIONS:
+            raise ValueError(
+                f"Invalid compression type: {compression_type!r}. "
+                f"Must be one of: {', '.join(sorted(_VALID_COMPRESSIONS))}"
+            )
         self._config["compression.type"] = compression_type
         return self
 
@@ -134,6 +147,8 @@ class ProducerConfig:
             >>> # Wait up to 10ms to batch messages
             >>> config = ProducerConfig().linger_ms(10)
         """
+        if milliseconds < 0:
+            raise ValueError(f"linger_ms must be non-negative, got {milliseconds}")
         self._config["linger.ms"] = milliseconds
         return self
 
@@ -150,6 +165,8 @@ class ProducerConfig:
         Examples:
             >>> config = ProducerConfig().batch_size(32768)  # 32KB batches
         """
+        if bytes_size < 0:
+            raise ValueError(f"batch_size must be non-negative, got {bytes_size}")
         self._config["batch.size"] = bytes_size
         return self
 
@@ -287,6 +304,11 @@ class ConsumerConfig:
             >>> # Only process new messages
             >>> config = ConsumerConfig().auto_offset_reset("latest")
         """
+        if reset not in _VALID_OFFSET_RESETS:
+            raise ValueError(
+                f"Invalid auto_offset_reset value: {reset!r}. "
+                f"Must be one of: 'earliest', 'latest', 'none'"
+            )
         self._config["auto.offset.reset"] = reset
         return self
 

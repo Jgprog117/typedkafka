@@ -85,6 +85,8 @@ class MockProducer:
         self.call_count = 0
         self.flushed = False
         self._closed = False
+        self._in_transaction = False
+        self._transaction_messages: list[tuple[str, MockMessage]] = []
 
     def send(
         self,
@@ -120,7 +122,10 @@ class MockProducer:
             offset=offset,
         )
 
-        self.messages[topic].append(msg)
+        if self._in_transaction:
+            self._transaction_messages.append((topic, msg))
+        else:
+            self.messages[topic].append(msg)
 
         # Call delivery callback with success
         if on_delivery:
@@ -179,6 +184,23 @@ class MockProducer:
         key_bytes = key.encode("utf-8") if key else None
         self.send(topic, value_bytes, key=key_bytes, partition=partition, on_delivery=on_delivery)
 
+    def send_batch(
+        self,
+        topic: str,
+        messages: list[tuple[bytes, Optional[bytes]]],
+        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+    ) -> None:
+        """
+        Record a batch of message sends.
+
+        Args:
+            topic: Topic to send to
+            messages: List of (value, key) tuples
+            on_delivery: Optional delivery callback
+        """
+        for value, key in messages:
+            self.send(topic, value, key=key, on_delivery=on_delivery)
+
     def flush(self, timeout: float = -1) -> int:
         """
         Mark producer as flushed (no-op in mock).
@@ -204,6 +226,31 @@ class MockProducer:
         self._closed = True
         self.flush()
 
+    def init_transactions(self, timeout: float = 30.0) -> None:
+        """Initialize transactions (no-op in mock)."""
+        pass
+
+    def begin_transaction(self) -> None:
+        """Begin a mock transaction."""
+        self._in_transaction = True
+        self._transaction_messages = []
+
+    def commit_transaction(self, timeout: float = 30.0) -> None:
+        """Commit the mock transaction, flushing buffered messages."""
+        for topic, msg in self._transaction_messages:
+            self.messages[topic].append(msg)
+        self._transaction_messages = []
+        self._in_transaction = False
+
+    def abort_transaction(self, timeout: float = 30.0) -> None:
+        """Abort the mock transaction, discarding buffered messages."""
+        self._transaction_messages = []
+        self._in_transaction = False
+
+    def transaction(self) -> "MockTransactionContext":
+        """Return a mock transaction context manager."""
+        return MockTransactionContext(self)
+
     def reset(self) -> None:
         """
         Clear all recorded messages and reset state.
@@ -221,6 +268,8 @@ class MockProducer:
         self.call_count = 0
         self.flushed = False
         self._closed = False
+        self._in_transaction = False
+        self._transaction_messages = []
 
     def __enter__(self) -> "MockProducer":
         """Context manager entry."""
@@ -229,6 +278,23 @@ class MockProducer:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Context manager exit."""
         self.close()
+
+
+class MockTransactionContext:
+    """Mock transaction context manager for testing."""
+
+    def __init__(self, producer: MockProducer):
+        self._producer = producer
+
+    def __enter__(self) -> "MockTransactionContext":
+        self._producer.begin_transaction()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if exc_type is not None:
+            self._producer.abort_transaction()
+        else:
+            self._producer.commit_transaction()
 
 
 class MockConsumer:
@@ -250,6 +316,7 @@ class MockConsumer:
         messages: Queue of MockMessage objects to be consumed
         subscribed_topics: List of subscribed topics
         committed_offsets: Dict of committed offsets by topic/partition
+        poll_timeout: Timeout used by __iter__ (matches KafkaConsumer)
     """
 
     def __init__(self, config: Optional[dict[str, Any]] = None):
@@ -265,6 +332,7 @@ class MockConsumer:
         self.committed_offsets: dict[tuple[str, int], int] = {}
         self._closed = False
         self._message_index = 0
+        self.poll_timeout: float = 1.0
 
     def add_message(
         self,
@@ -333,12 +401,21 @@ class MockConsumer:
         key_bytes = key.encode("utf-8") if key else None
         self.add_message(topic, value_bytes, key=key_bytes, partition=partition)
 
-    def subscribe(self, topics: list[str]) -> None:
+    def subscribe(
+        self,
+        topics: list[str],
+        on_assign: Optional[Callable[[Any, Any], None]] = None,
+        on_revoke: Optional[Callable[[Any, Any], None]] = None,
+        on_lost: Optional[Callable[[Any, Any], None]] = None,
+    ) -> None:
         """
         Subscribe to topics (recorded but not enforced in mock).
 
         Args:
             topics: List of topic names
+            on_assign: Optional rebalance callback (stored but not called in mock)
+            on_revoke: Optional rebalance callback (stored but not called in mock)
+            on_lost: Optional rebalance callback (stored but not called in mock)
 
         Examples:
             >>> consumer = MockConsumer()
@@ -346,6 +423,9 @@ class MockConsumer:
             >>> assert "topic1" in consumer.subscribed_topics
         """
         self.subscribed_topics = topics
+        self._on_assign = on_assign
+        self._on_revoke = on_revoke
+        self._on_lost = on_lost
 
     def poll(self, timeout: float = 1.0) -> Optional[MockMessage]:
         """
@@ -420,20 +500,13 @@ class MockConsumer:
 
     def __iter__(self):
         """
-        Iterate over all messages.
+        Iterate over queued messages.
+
+        Yields all queued messages then stops. In tests, use poll() in a loop
+        or add all messages before iterating.
 
         Yields:
-            MockMessage objects until exhausted
-
-        Examples:
-            >>> consumer = MockConsumer()
-            >>> consumer.add_message("topic", b"msg1")
-            >>> consumer.add_message("topic", b"msg2")
-            >>>
-            >>> for msg in consumer:
-            ...     print(msg.value)
-            b'msg1'
-            b'msg2'
+            MockMessage objects until queue is exhausted
         """
         while True:
             msg = self.poll()

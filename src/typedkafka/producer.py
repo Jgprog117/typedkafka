@@ -299,6 +299,169 @@ class KafkaProducer:
         """
         return self
 
+    def send_batch(
+        self,
+        topic: str,
+        messages: list[tuple[bytes, Optional[bytes]]],
+        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+    ) -> None:
+        """
+        Send a batch of messages to a Kafka topic.
+
+        Each message is a tuple of (value, key). This is more efficient than
+        calling send() repeatedly as it defers polling until after all messages
+        are queued.
+
+        Args:
+            topic: The topic name to send the messages to
+            messages: List of (value, key) tuples. Key can be None.
+            on_delivery: Optional callback for each message delivery.
+
+        Raises:
+            ProducerError: If any message cannot be queued
+
+        Examples:
+            >>> producer.send_batch("events", [
+            ...     (b"event1", b"key1"),
+            ...     (b"event2", b"key2"),
+            ...     (b"event3", None),
+            ... ])
+            >>> producer.flush()
+        """
+        for value, key in messages:
+            try:
+                self._producer.produce(
+                    topic=topic,
+                    value=value,
+                    key=key,
+                    on_delivery=on_delivery,
+                )
+            except BufferError:
+                # Flush and retry once on buffer full
+                self._producer.flush()
+                try:
+                    self._producer.produce(
+                        topic=topic,
+                        value=value,
+                        key=key,
+                        on_delivery=on_delivery,
+                    )
+                except Exception as retry_e:
+                    raise ProducerError(
+                        f"Failed to send message to topic '{topic}' after flush: {retry_e}",
+                        original_error=retry_e,
+                    ) from retry_e
+            except Exception as e:
+                raise ProducerError(
+                    f"Failed to send message to topic '{topic}': {e}",
+                    original_error=e,
+                ) from e
+        # Poll to trigger callbacks
+        self._producer.poll(0)
+
+    def init_transactions(self, timeout: float = 30.0) -> None:
+        """
+        Initialize the producer for transactions.
+
+        Must be called before any transactional methods. Requires the
+        ``transactional.id`` configuration to be set.
+
+        Args:
+            timeout: Maximum time to wait for initialization in seconds.
+
+        Raises:
+            ProducerError: If transaction initialization fails.
+
+        Examples:
+            >>> producer = KafkaProducer({
+            ...     "bootstrap.servers": "localhost:9092",
+            ...     "transactional.id": "my-txn-id",
+            ... })
+            >>> producer.init_transactions()
+        """
+        try:
+            self._producer.init_transactions(timeout)
+        except Exception as e:
+            raise ProducerError(
+                f"Failed to initialize transactions: {e}",
+                original_error=e,
+            ) from e
+
+    def begin_transaction(self) -> None:
+        """
+        Begin a new transaction.
+
+        Raises:
+            ProducerError: If beginning the transaction fails.
+        """
+        try:
+            self._producer.begin_transaction()
+        except Exception as e:
+            raise ProducerError(
+                f"Failed to begin transaction: {e}",
+                original_error=e,
+            ) from e
+
+    def commit_transaction(self, timeout: float = 30.0) -> None:
+        """
+        Commit the current transaction.
+
+        Args:
+            timeout: Maximum time to wait for commit in seconds.
+
+        Raises:
+            ProducerError: If committing the transaction fails.
+        """
+        try:
+            self._producer.commit_transaction(timeout)
+        except Exception as e:
+            raise ProducerError(
+                f"Failed to commit transaction: {e}",
+                original_error=e,
+            ) from e
+
+    def abort_transaction(self, timeout: float = 30.0) -> None:
+        """
+        Abort the current transaction.
+
+        Args:
+            timeout: Maximum time to wait for abort in seconds.
+
+        Raises:
+            ProducerError: If aborting the transaction fails.
+        """
+        try:
+            self._producer.abort_transaction(timeout)
+        except Exception as e:
+            raise ProducerError(
+                f"Failed to abort transaction: {e}",
+                original_error=e,
+            ) from e
+
+    def transaction(self) -> "TransactionContext":
+        """
+        Return a context manager for transactional sends.
+
+        Automatically begins, commits, or aborts the transaction.
+
+        Returns:
+            A context manager that manages the transaction lifecycle.
+
+        Raises:
+            ProducerError: If any transaction operation fails.
+
+        Examples:
+            >>> producer = KafkaProducer({
+            ...     "bootstrap.servers": "localhost:9092",
+            ...     "transactional.id": "my-txn-id",
+            ... })
+            >>> producer.init_transactions()
+            >>> with producer.transaction():
+            ...     producer.send("topic", b"msg1")
+            ...     producer.send("topic", b"msg2")
+        """
+        return TransactionContext(self)
+
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """
         Exit context manager and cleanup resources.
@@ -306,3 +469,24 @@ class KafkaProducer:
         Automatically flushes all pending messages before exiting.
         """
         self.close()
+
+
+class TransactionContext:
+    """Context manager for Kafka transactions.
+
+    Begins a transaction on entry and commits on clean exit.
+    Aborts the transaction if an exception occurs.
+    """
+
+    def __init__(self, producer: KafkaProducer):
+        self._producer = producer
+
+    def __enter__(self) -> "TransactionContext":
+        self._producer.begin_transaction()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if exc_type is not None:
+            self._producer.abort_transaction()
+        else:
+            self._producer.commit_transaction()

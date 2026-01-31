@@ -16,9 +16,18 @@ from typedkafka.exceptions import (
     ProducerError,
     SerializationError,
 )
-from typedkafka.producer import KafkaProducer
+from typedkafka.producer import KafkaProducer, TransactionContext
+from typedkafka.retry import RetryPolicy, retry
+from typedkafka.serializers import (
+    Deserializer,
+    JsonDeserializer,
+    JsonSerializer,
+    Serializer,
+    StringDeserializer,
+    StringSerializer,
+)
 
-__version__ = "0.2.0"  # Bumped for new features
+__version__ = "0.3.0"
 __all__ = [
     "KafkaProducer",
     "KafkaConsumer",
@@ -31,5 +40,14 @@ __all__ = [
     "ConsumerError",
     "SerializationError",
     "AdminError",
+    "TransactionContext",
+    "retry",
+    "RetryPolicy",
+    "Serializer",
+    "Deserializer",
+    "JsonSerializer",
+    "JsonDeserializer",
+    "StringSerializer",
+    "StringDeserializer",
     "testing",
 ]

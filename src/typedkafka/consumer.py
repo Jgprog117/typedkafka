@@ -6,7 +6,7 @@ This module provides a well-documented, type-hinted wrapper around confluent-kaf
 
 import json
 from collections.abc import Iterator
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 try:
     from confluent_kafka import Consumer as ConfluentConsumer
@@ -212,6 +212,7 @@ class KafkaConsumer:
             )
 
         self.config = config
+        self.poll_timeout: float = 1.0
         try:
             self._consumer = ConfluentConsumer(config)
         except Exception as e:
@@ -220,12 +221,24 @@ class KafkaConsumer:
                 original_error=e,
             ) from e
 
-    def subscribe(self, topics: list[str]) -> None:
+    def subscribe(
+        self,
+        topics: list[str],
+        on_assign: Optional[Callable[[Any, Any], None]] = None,
+        on_revoke: Optional[Callable[[Any, Any], None]] = None,
+        on_lost: Optional[Callable[[Any, Any], None]] = None,
+    ) -> None:
         """
         Subscribe to one or more topics.
 
         Args:
             topics: List of topic names to subscribe to
+            on_assign: Callback invoked when partitions are assigned.
+                Signature: callback(consumer, partitions)
+            on_revoke: Callback invoked when partitions are revoked.
+                Signature: callback(consumer, partitions)
+            on_lost: Callback invoked when partitions are lost (unclean).
+                Signature: callback(consumer, partitions)
 
         Raises:
             ConsumerError: If subscription fails
@@ -237,11 +250,22 @@ class KafkaConsumer:
             >>> # Subscribe to multiple topics
             >>> consumer.subscribe(["orders", "payments", "shipments"])
 
-            >>> # Subscribe with pattern (all topics starting with "logs-")
-            >>> consumer.subscribe(["^logs-.*"])
+            >>> # Subscribe with rebalance callbacks
+            >>> def on_assign(consumer, partitions):
+            ...     print(f"Assigned: {partitions}")
+            >>> def on_revoke(consumer, partitions):
+            ...     print(f"Revoked: {partitions}")
+            >>> consumer.subscribe(["my-topic"], on_assign=on_assign, on_revoke=on_revoke)
         """
         try:
-            self._consumer.subscribe(topics)
+            kwargs: dict[str, Any] = {}
+            if on_assign is not None:
+                kwargs["on_assign"] = on_assign
+            if on_revoke is not None:
+                kwargs["on_revoke"] = on_revoke
+            if on_lost is not None:
+                kwargs["on_lost"] = on_lost
+            self._consumer.subscribe(topics, **kwargs)
         except Exception as e:
             raise ConsumerError(
                 f"Failed to subscribe to topics {topics}: {e}",
@@ -361,6 +385,9 @@ class KafkaConsumer:
         """
         Iterate over messages indefinitely.
 
+        Uses the configured poll_timeout (default 1.0s). Configure via the
+        poll_timeout property.
+
         Yields:
             KafkaMessage objects as they arrive
 
@@ -368,9 +395,14 @@ class KafkaConsumer:
             >>> for msg in consumer:
             ...     print(f"Received: {msg.value_as_string()}")
             ...     consumer.commit(msg)
+
+            >>> # With custom poll timeout
+            >>> consumer.poll_timeout = 5.0
+            >>> for msg in consumer:
+            ...     process(msg)
         """
         while True:
-            msg = self.poll(timeout=1.0)
+            msg = self.poll(timeout=self.poll_timeout)
             if msg:
                 yield msg
 
