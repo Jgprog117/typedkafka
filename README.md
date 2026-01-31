@@ -10,21 +10,26 @@ A well-documented, fully type-hinted Kafka client for Python.
 typedkafka provides a modern Python interface to Apache Kafka with comprehensive documentation, full type hints, and developer-friendly features. Built on confluent-kafka for performance and reliability.
 
 **Key Features:**
-- Comprehensive docstrings for every class and method
-- Full type hints for IDE autocomplete and type checking
-- Convenient helper methods for JSON and string messages
-- Testing utilities (MockProducer/MockConsumer) for unit tests
-- Type-safe configuration builders
+- Full type hints and comprehensive docstrings
+- JSON, string, and bytes message helpers
+- Transaction support with context managers
+- Async producer and consumer (`asyncio`)
+- Retry utilities with exponential backoff
+- Pluggable serializer framework (JSON, String, Avro/Schema Registry)
+- Testing utilities (MockProducer/MockConsumer)
+- Type-safe configuration builders with validation
 - Admin client for topic management
-- Context managers for automatic resource cleanup
 
 ## Installation
 
 ```bash
 pip install typedkafka
+
+# With Avro/Schema Registry support
+pip install typedkafka[avro]
 ```
 
-Requires Python 3.9+ and installs `confluent-kafka` as a dependency.
+Requires Python 3.9+.
 
 ## Quick Start
 
@@ -34,15 +39,9 @@ Requires Python 3.9+ and installs `confluent-kafka` as a dependency.
 from typedkafka import KafkaProducer
 
 with KafkaProducer({"bootstrap.servers": "localhost:9092"}) as producer:
-    # Send bytes
     producer.send("my-topic", b"Hello, Kafka!")
-
-    # Send JSON (automatic serialization)
     producer.send_json("events", {"user_id": 123, "action": "click"})
-
-    # Send string
     producer.send_string("logs", "Application started")
-
     producer.flush()
 ```
 
@@ -59,45 +58,116 @@ config = {
 
 with KafkaConsumer(config) as consumer:
     consumer.subscribe(["my-topic"])
-
     for msg in consumer:
-        # Convenient deserialization
         data = msg.value_as_json()
         print(f"Received: {data}")
-
         consumer.commit(msg)
+```
+
+### Transactions
+
+```python
+from typedkafka import KafkaProducer
+
+producer = KafkaProducer({
+    "bootstrap.servers": "localhost:9092",
+    "transactional.id": "my-txn-id",
+})
+producer.init_transactions()
+
+with producer.transaction():
+    producer.send("topic", b"msg1")
+    producer.send("topic", b"msg2")
+    # Commits on success, aborts on exception
+```
+
+### Async
+
+```python
+from typedkafka.aio import AsyncKafkaProducer, AsyncKafkaConsumer
+
+async with AsyncKafkaProducer({"bootstrap.servers": "localhost:9092"}) as producer:
+    await producer.send("topic", b"async message")
+    await producer.send_json("events", {"id": 1})
+    await producer.flush()
+
+async with AsyncKafkaConsumer(config) as consumer:
+    consumer.subscribe(["topic"])
+    async for msg in consumer:
+        process(msg)
+```
+
+### Retry
+
+```python
+from typedkafka.retry import retry, RetryPolicy
+
+@retry(max_attempts=3, backoff_base=1.0)
+def send_with_retry(producer, data):
+    producer.send_json("events", data)
+    producer.flush()
+
+# Or use RetryPolicy programmatically
+policy = RetryPolicy(max_attempts=5, backoff_base=0.5)
+policy.execute(producer.send, "topic", b"value")
+```
+
+### Serializers
+
+```python
+from typedkafka.serializers import JsonSerializer, AvroSerializer
+
+json_ser = JsonSerializer()
+data = json_ser.serialize("topic", {"user_id": 123})
+
+# Avro with Schema Registry (requires typedkafka[avro])
+avro_ser = AvroSerializer("http://localhost:8081", schema_str)
+data = avro_ser.serialize("users", {"id": 123, "name": "Alice"})
+```
+
+### Batch Send
+
+```python
+producer.send_batch("events", [
+    (b"event1", b"key1"),
+    (b"event2", b"key2"),
+    (b"event3", None),
+])
+producer.flush()
 ```
 
 ## Testing Utilities
 
-Mock implementations for testing without running Kafka:
+Mock implementations for testing without a running Kafka broker:
 
 ```python
 from typedkafka.testing import MockProducer, MockConsumer
 
-def test_my_function():
+def test_my_producer():
     producer = MockProducer()
     my_function(producer)
-
-    # Verify what was sent
     assert len(producer.messages["events"]) == 1
-    msg = producer.messages["events"][0]
-    assert msg.value == b"expected"
 
-def test_message_processing():
+def test_my_consumer():
     consumer = MockConsumer()
     consumer.add_json_message("events", {"user_id": 123})
-
     result = process_messages(consumer)
     assert result is not None
+
+def test_transactions():
+    producer = MockProducer()
+    producer.init_transactions()
+    with producer.transaction():
+        producer.send("topic", b"transactional msg")
+    assert len(producer.messages["topic"]) == 1
 ```
 
 ## Type-Safe Configuration
 
-Fluent builders with IDE autocomplete:
+Fluent builders with validation and IDE autocomplete:
 
 ```python
-from typedkafka import ProducerConfig, KafkaProducer
+from typedkafka import ProducerConfig, ConsumerConfig, KafkaProducer
 
 config = (ProducerConfig()
     .bootstrap_servers("localhost:9092")
@@ -109,96 +179,22 @@ config = (ProducerConfig()
 producer = KafkaProducer(config)
 ```
 
-## Admin Operations
-
-Manage topics and cluster configuration:
+Invalid values raise `ValueError` immediately:
 
 ```python
-from typedkafka import KafkaAdmin
-
-admin = KafkaAdmin({"bootstrap.servers": "localhost:9092"})
-
-# Create topic
-admin.create_topic("events", num_partitions=10, replication_factor=3)
-
-# List topics
-topics = admin.list_topics()
-
-# Get topic details
-info = admin.describe_topic("events")
-
-# Delete topic
-admin.delete_topic("old-topic")
-```
-
-## Comprehensive Documentation
-
-Every method includes detailed documentation:
-
-```python
-def send(
-    self,
-    topic: str,
-    value: bytes,
-    key: Optional[bytes] = None,
-    partition: Optional[int] = None,
-    on_delivery: Optional[Callable] = None,
-) -> None:
-    """
-    Send a message to a Kafka topic.
-
-    This method is asynchronous - returns immediately after queuing.
-    Use flush() to wait for delivery confirmation.
-
-    Args:
-        topic: The topic name to send the message to
-        value: The message payload as bytes
-        key: Optional message key as bytes. Messages with the same
-             key go to the same partition.
-        partition: Optional partition number. If None, partition is
-                  chosen by the partitioner.
-        on_delivery: Optional callback function called when delivery
-                    succeeds or fails.
-
-    Raises:
-        ProducerError: If the message cannot be queued
-
-    Examples:
-        >>> producer.send("my-topic", b"Hello!")
-        >>> producer.send("events", b"data", key=b"user-123")
-    """
-```
-
-## Better Error Messages
-
-Clear, actionable errors with context:
-
-```python
-try:
-    producer.send_json("topic", non_serializable_object)
-except SerializationError as e:
-    # Error includes:
-    # - Clear message
-    # - The problematic value (e.value)
-    # - Original error (e.original_error)
-    print(f"Failed to serialize: {e}")
+ProducerConfig().acks("invalid")      # ValueError
+ProducerConfig().compression("brotli") # ValueError
 ```
 
 ## Development
 
 ```bash
-# Clone the repository
 git clone https://github.com/Jgprog117/typedkafka.git
 cd typedkafka
-
-# Install in editable mode with dev dependencies
 pip install -e ".[dev]"
-
-# Run tests
 pytest
-
-# Run linter
 ruff check .
+mypy src
 ```
 
 ## License
@@ -207,18 +203,24 @@ MIT License - see LICENSE file for details.
 
 ## Changelog
 
-### 0.2.0 (2026-01-31)
+### 0.3.0
 
-- Added testing utilities (MockProducer, MockConsumer)
-- Added type-safe configuration builders (ProducerConfig, ConsumerConfig)
-- Added Admin client wrapper for topic management
-- Improved documentation and examples
+- Transaction support: `init_transactions()`, `begin/commit/abort_transaction()`, `transaction()` context manager
+- Async producer and consumer (`typedkafka.aio`)
+- Retry utilities: `@retry` decorator and `RetryPolicy` class
+- Pluggable serializers: `Serializer`/`Deserializer` ABCs, JSON, String, and Avro implementations
+- Batch send: `send_batch()` on producer
+- Consumer rebalance callbacks: `on_assign`, `on_revoke`, `on_lost` on `subscribe()`
+- Configurable iterator poll timeout via `poll_timeout` attribute
+- Config validation: early `ValueError` on invalid `acks`, `compression`, `auto_offset_reset`, `linger_ms`, `batch_size`
+- Expanded test suite (120 tests)
 
-### 0.1.0 (2026-01-31)
+### 0.2.0
 
-- Initial release
-- KafkaProducer with comprehensive documentation
-- KafkaConsumer with helper methods
-- Full type hints throughout
-- Context manager support
-- JSON and string convenience methods
+- Testing utilities (MockProducer, MockConsumer)
+- Type-safe configuration builders (ProducerConfig, ConsumerConfig)
+- Admin client wrapper for topic management
+
+### 0.1.0
+
+- Initial release with KafkaProducer, KafkaConsumer, full type hints, context manager support

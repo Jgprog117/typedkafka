@@ -104,12 +104,15 @@ Enhancement suggestions are welcome! Please:
 ```
 typedkafka/
 ├── src/typedkafka/      # Main package code
-│   ├── producer.py      # Producer implementation
-│   ├── consumer.py      # Consumer implementation
-│   ├── admin.py         # Admin client
-│   ├── config.py        # Configuration builders
-│   ├── testing.py       # Mock implementations
-│   └── exceptions.py    # Custom exceptions
+│   ├── producer.py      # Producer with transactions and batch send
+│   ├── consumer.py      # Consumer with rebalance callbacks
+│   ├── admin.py         # Admin client for topic management
+│   ├── config.py        # Configuration builders with validation
+│   ├── testing.py       # Mock implementations for unit tests
+│   ├── exceptions.py    # Custom exception hierarchy
+│   ├── aio.py           # Async producer and consumer
+│   ├── retry.py         # Retry decorator and policy
+│   └── serializers.py   # Pluggable serializer framework
 ├── tests/               # Test files
 ├── .github/             # GitHub Actions workflows
 └── docs/                # Documentation (if applicable)
