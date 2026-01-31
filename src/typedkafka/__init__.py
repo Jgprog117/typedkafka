@@ -5,8 +5,10 @@ Built on confluent-kafka with comprehensive docstrings, full type hints,
 and a modern Pythonic API.
 """
 
-from typedkafka.admin import KafkaAdmin, AdminError, TopicConfig
-from typedkafka.config import ProducerConfig, ConsumerConfig
+# Testing utilities in separate namespace
+from typedkafka import testing
+from typedkafka.admin import AdminError, KafkaAdmin, TopicConfig
+from typedkafka.config import ConsumerConfig, ProducerConfig
 from typedkafka.consumer import KafkaConsumer
 from typedkafka.exceptions import (
     ConsumerError,
@@ -15,9 +17,6 @@ from typedkafka.exceptions import (
     SerializationError,
 )
 from typedkafka.producer import KafkaProducer
-
-# Testing utilities in separate namespace
-from typedkafka import testing
 
 __version__ = "0.2.0"  # Bumped for new features
 __all__ = [
