@@ -6,7 +6,7 @@ This module provides a well-documented, type-hinted wrapper around confluent-kaf
 
 import json
 from collections.abc import Iterator
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, TypeVar
 
 try:
     from confluent_kafka import Consumer as ConfluentConsumer
@@ -20,6 +20,8 @@ except ImportError:
 
 from typedkafka.exceptions import ConsumerError, SerializationError
 from typedkafka.metrics import KafkaMetrics, StatsCallback, make_stats_cb
+
+T = TypeVar("T")
 
 
 class KafkaMessage:
@@ -134,6 +136,39 @@ class KafkaMessage:
                 original_error=e,
             ) from e
 
+    def value_as(self, deserializer: Callable[[bytes], T]) -> T:
+        """
+        Decode the message value using a custom deserializer function.
+
+        Args:
+            deserializer: A callable that takes bytes and returns the desired type.
+
+        Returns:
+            Deserialized value
+
+        Raises:
+            SerializationError: If deserialization fails
+
+        Examples:
+            >>> from dataclasses import dataclass
+            >>> @dataclass
+            ... class UserEvent:
+            ...     user_id: int
+            ...     @classmethod
+            ...     def from_bytes(cls, data: bytes) -> "UserEvent":
+            ...         d = json.loads(data)
+            ...         return cls(user_id=d["user_id"])
+            >>> event = msg.value_as(UserEvent.from_bytes)
+        """
+        try:
+            return deserializer(self.value)
+        except Exception as e:
+            raise SerializationError(
+                f"Failed to deserialize message value: {e}",
+                value=self.value,
+                original_error=e,
+            ) from e
+
     def __repr__(self) -> str:
         """Return string representation of the message."""
         return (
@@ -178,6 +213,7 @@ class KafkaConsumer:
         self,
         config: dict[str, Any],
         on_stats: Optional[StatsCallback] = None,
+        value_deserializer: Optional[Callable[[bytes], Any]] = None,
     ):
         """
         Initialize a Kafka consumer with the given configuration.
@@ -196,6 +232,9 @@ class KafkaConsumer:
                 - statistics.interval.ms (int): Stats reporting interval in milliseconds
             on_stats: Optional callback receiving parsed KafkaStats each reporting interval.
                 Requires ``statistics.interval.ms`` to be set in config.
+            value_deserializer: Optional function to automatically deserialize message
+                values. When set, use ``msg.value_as(deserializer)`` or the configured
+                deserializer will be available for typed consumption patterns.
 
         Raises:
             ConsumerError: If the consumer cannot be initialized
@@ -223,6 +262,7 @@ class KafkaConsumer:
 
         self._metrics = KafkaMetrics()
         self.config = config
+        self.value_deserializer = value_deserializer
         self.poll_timeout: float = 1.0
         if config.get("statistics.interval.ms"):
             config = dict(config)

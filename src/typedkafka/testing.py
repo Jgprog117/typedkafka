@@ -126,6 +126,27 @@ class MockMessage:
                 original_error=e,
             ) from e
 
+    def value_as(self, deserializer):  # type: ignore[no-untyped-def]
+        """
+        Decode the message value using a custom deserializer function.
+
+        Args:
+            deserializer: A callable that takes bytes and returns the desired type.
+
+        Returns:
+            Deserialized value
+        """
+        from typedkafka.exceptions import SerializationError
+
+        try:
+            return deserializer(self.value)
+        except Exception as e:
+            raise SerializationError(
+                f"Failed to deserialize message value: {e}",
+                value=self.value,
+                original_error=e,
+            ) from e
+
     def __repr__(self) -> str:
         """Return string representation of the message."""
         return (
