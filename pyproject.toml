@@ -54,6 +54,13 @@ Issues = "https://github.com/Jgprog117/typedkafka/issues"
 avro = [
     "confluent-kafka[avro]>=2.0.0",
 ]
+protobuf = [
+    "protobuf>=4.0",
+    "confluent-kafka[protobuf]>=2.0.0",
+]
+all = [
+    "typedkafka[avro,protobuf]",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
