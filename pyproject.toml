@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "typedkafka"
-version = "0.5.0"
+version = "0.6.0"
 description = "A well-documented, fully type-hinted Kafka client for Python"
 readme = "README.md"
 requires-python = ">=3.9"

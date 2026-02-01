@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.6.0]
 
 ### Added
 - **Enhanced exceptions**: `KafkaErrorContext` dataclass for structured error metadata; new `ConfigurationError` and `TransactionError` exception classes
@@ -20,7 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - **OpenTelemetry tracing**: `KafkaTracer` with `produce_span()` and `consume_span()` context managers following OTel semantic conventions; graceful no-op when OTel is not installed
 - `protobuf` and `all` optional dependency groups
 - GitHub Pages docs deployment workflow
-- Test coverage: 342 tests (up from 320)
+
+### Changed
+- Transaction methods on `KafkaProducer` now raise `TransactionError` instead of `ProducerError`
+- `build(validate=True)` on config builders now raises `ConfigurationError` instead of `ValueError`
+- Test coverage: 418 tests at 96% coverage (up from 320 tests)
 
 ## [0.5.0]
 

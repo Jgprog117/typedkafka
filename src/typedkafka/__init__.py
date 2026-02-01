@@ -37,7 +37,7 @@ from typedkafka.telemetry import KafkaTracer
 try:
     __version__ = version("typedkafka")
 except PackageNotFoundError:
-    __version__ = "0.5.0"
+    __version__ = "0.6.0"
 
 __all__ = [
     "KafkaProducer",

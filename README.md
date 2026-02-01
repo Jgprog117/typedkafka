@@ -10,25 +10,19 @@ A well-documented, fully type-hinted Kafka client for Python.
 typedkafka provides a modern Python interface to Apache Kafka with comprehensive documentation, full type hints, and developer-friendly features. Built on confluent-kafka for performance and reliability.
 
 **Key Features:**
-- Full type hints and comprehensive docstrings
-- JSON, string, and bytes message helpers
+- Full type hints and comprehensive docstrings on every public method
+- JSON, string, bytes, Protobuf, and Avro/Schema Registry serialization
 - Transaction support with context managers
-- Async producer and consumer (`asyncio`)
+- Async producer and consumer (`asyncio`) with batch consumption
 - Retry utilities with exponential backoff
-- Pluggable serializer framework (JSON, String, Avro/Schema Registry, Protobuf)
+- OpenTelemetry tracing (`KafkaTracer`) with graceful no-op fallback
 - Metrics collection and statistics tracking (`KafkaMetrics`, `KafkaStats`)
-- Dead letter queue helper (`DeadLetterQueue`, `process_with_dlq`)
-- OpenTelemetry tracing integration (`KafkaTracer`)
-- Message headers support on `send()`
-- Testing utilities (MockProducer/MockConsumer/MockDeadLetterQueue) with full API parity
-- Type-safe configuration builders with validation, presets, and security helpers (SASL, SSL)
-- Configuration presets (`ProducerConfig.high_throughput()`, `exactly_once()`)
-- Environment-based config loading (`from_env()`)
-- Generic consumer deserialization (`value_as()`, `value_deserializer`)
-- Async batch consumption (`batch_consume()`)
-- Enhanced exception hierarchy with structured error context
+- Dead letter queue (`DeadLetterQueue`, `process_with_dlq`)
+- Type-safe configuration builders with presets, validation, env loading, and security helpers
+- Testing utilities (`MockProducer`, `MockConsumer`, `MockDeadLetterQueue`) with full API parity
+- Structured exception hierarchy with error context
 - Admin client for topic management
-- Batch polling and consumer offset management (seek, assign, position)
+- Consumer offset management, batch polling, and message headers
 
 ## Why typedkafka?
 
