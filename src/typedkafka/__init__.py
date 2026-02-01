@@ -24,7 +24,6 @@ from typedkafka.exceptions import (
 from typedkafka.metrics import KafkaMetrics, KafkaStats
 from typedkafka.producer import KafkaProducer, TransactionContext
 from typedkafka.retry import RetryPolicy, retry
-from typedkafka.telemetry import KafkaTracer
 from typedkafka.serializers import (
     Deserializer,
     JsonDeserializer,
@@ -33,6 +32,7 @@ from typedkafka.serializers import (
     StringDeserializer,
     StringSerializer,
 )
+from typedkafka.telemetry import KafkaTracer
 
 try:
     __version__ = version("typedkafka")
