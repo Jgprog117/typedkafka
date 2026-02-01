@@ -97,6 +97,16 @@ class TestProducerConfig:
         config = ProducerConfig().max_in_flight_requests(1).build()
         assert config["max.in.flight.requests.per.connection"] == 1
 
+    def test_client_id(self):
+        """Test setting client ID."""
+        config = ProducerConfig().client_id("my-producer").build()
+        assert config["client.id"] == "my-producer"
+
+    def test_empty_build(self):
+        """Test building empty config."""
+        config = ProducerConfig().build()
+        assert config == {}
+
 
 class TestConsumerConfig:
     """Test ConsumerConfig builder."""
@@ -186,3 +196,13 @@ class TestConsumerConfig:
         config2 = builder.build()
         assert config1 is not config2
         assert config1 == config2
+
+    def test_client_id(self):
+        """Test setting client ID."""
+        config = ConsumerConfig().client_id("my-consumer").build()
+        assert config["client.id"] == "my-consumer"
+
+    def test_empty_build(self):
+        """Test building empty config."""
+        config = ConsumerConfig().build()
+        assert config == {}
