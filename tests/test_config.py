@@ -3,6 +3,7 @@
 import pytest
 
 from typedkafka.config import ConsumerConfig, ProducerConfig
+from typedkafka.exceptions import ConfigurationError
 
 
 class TestProducerConfig:
@@ -109,7 +110,7 @@ class TestProducerConfig:
 
     def test_build_validated_missing_bootstrap(self):
         """Test build(validate=True) raises when bootstrap.servers missing."""
-        with pytest.raises(ValueError, match="bootstrap.servers"):
+        with pytest.raises(ConfigurationError, match="bootstrap.servers"):
             ProducerConfig().acks("all").build(validate=True)
 
     def test_build_validated_passes(self):
@@ -251,12 +252,12 @@ class TestConsumerConfig:
 
     def test_build_validated_missing_bootstrap(self):
         """Test build(validate=True) raises when bootstrap.servers missing."""
-        with pytest.raises(ValueError, match="bootstrap.servers"):
+        with pytest.raises(ConfigurationError, match="bootstrap.servers"):
             ConsumerConfig().group_id("test").build(validate=True)
 
     def test_build_validated_missing_group_id(self):
         """Test build(validate=True) raises when group.id missing."""
-        with pytest.raises(ValueError, match="group.id"):
+        with pytest.raises(ConfigurationError, match="group.id"):
             ConsumerConfig().bootstrap_servers("localhost:9092").build(validate=True)
 
     def test_build_validated_passes(self):
@@ -288,3 +289,93 @@ class TestConsumerConfig:
         assert config["security.protocol"] == "SSL"
         assert config["ssl.ca.location"] == "/ca.pem"
         assert config["ssl.certificate.location"] == "/cert.pem"
+
+    def test_from_env(self, monkeypatch):
+        """Test loading consumer config from environment variables."""
+        monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092")
+        monkeypatch.setenv("KAFKA_GROUP_ID", "my-group")
+        monkeypatch.setenv("KAFKA_AUTO_OFFSET_RESET", "earliest")
+        config = ConsumerConfig.from_env().build()
+        assert config["bootstrap.servers"] == "broker:9092"
+        assert config["group.id"] == "my-group"
+        assert config["auto.offset.reset"] == "earliest"
+
+
+class TestProducerConfigPresets:
+    """Test ProducerConfig presets and new methods."""
+
+    def test_enable_idempotence(self):
+        """Test enable_idempotence method."""
+        config = ProducerConfig().enable_idempotence().build()
+        assert config["enable.idempotence"] is True
+
+    def test_transactional_id(self):
+        """Test transactional_id method."""
+        config = ProducerConfig().transactional_id("my-txn").build()
+        assert config["transactional.id"] == "my-txn"
+
+    def test_high_throughput_preset(self):
+        """Test high_throughput preset."""
+        config = ProducerConfig.high_throughput("broker:9092").build()
+        assert config["bootstrap.servers"] == "broker:9092"
+        assert config["acks"] == "1"
+        assert config["compression.type"] == "lz4"
+        assert config["linger.ms"] == 50
+        assert config["batch.size"] == 65536
+
+    def test_exactly_once_preset(self):
+        """Test exactly_once preset."""
+        config = ProducerConfig.exactly_once("broker:9092", "txn-1").build()
+        assert config["bootstrap.servers"] == "broker:9092"
+        assert config["acks"] == "all"
+        assert config["enable.idempotence"] is True
+        assert config["transactional.id"] == "txn-1"
+
+    def test_exactly_once_validates(self):
+        """Test exactly_once preset passes validation."""
+        config = ProducerConfig.exactly_once("broker:9092", "txn-1").build(validate=True)
+        assert config["transactional.id"] == "txn-1"
+
+    def test_validate_idempotence_requires_acks_all(self):
+        """Test validation catches idempotence without acks=all."""
+        with pytest.raises(ConfigurationError, match="acks='all'"):
+            (
+                ProducerConfig()
+                .bootstrap_servers("broker:9092")
+                .acks("1")
+                .enable_idempotence()
+                .build(validate=True)
+            )
+
+    def test_validate_transactional_requires_idempotence(self):
+        """Test validation catches transactional.id without idempotence."""
+        with pytest.raises(ConfigurationError, match="enable.idempotence"):
+            (
+                ProducerConfig()
+                .bootstrap_servers("broker:9092")
+                .transactional_id("txn-1")
+                .build(validate=True)
+            )
+
+    def test_from_env(self, monkeypatch):
+        """Test loading producer config from environment variables."""
+        monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092")
+        monkeypatch.setenv("KAFKA_ACKS", "all")
+        monkeypatch.setenv("KAFKA_COMPRESSION", "gzip")
+        monkeypatch.setenv("KAFKA_LINGER_MS", "10")
+        config = ProducerConfig.from_env().build()
+        assert config["bootstrap.servers"] == "broker:9092"
+        assert config["acks"] == "all"
+        assert config["compression.type"] == "gzip"
+        assert config["linger.ms"] == 10
+
+    def test_from_env_custom_prefix(self, monkeypatch):
+        """Test from_env with custom prefix."""
+        monkeypatch.setenv("APP_BOOTSTRAP_SERVERS", "broker:9092")
+        config = ProducerConfig.from_env(prefix="APP_").build()
+        assert config["bootstrap.servers"] == "broker:9092"
+
+    def test_from_env_empty(self):
+        """Test from_env returns empty config when no env vars set."""
+        config = ProducerConfig.from_env(prefix="NONEXISTENT_").build()
+        assert config == {}

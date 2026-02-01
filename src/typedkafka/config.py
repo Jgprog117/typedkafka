@@ -5,7 +5,10 @@ Provides fluent API for building Kafka configurations with IDE autocomplete
 and validation, preventing common configuration errors.
 """
 
+import os
 from typing import Any, Literal, Optional, Union
+
+from typedkafka.exceptions import ConfigurationError
 
 _VALID_ACKS = {"0", "1", "all", 0, 1, -1}
 _VALID_COMPRESSIONS = {"none", "gzip", "snappy", "lz4", "zstd"}
@@ -268,6 +271,37 @@ class ProducerConfig(_SecurityConfigMixin):
         self._config["retries"] = count
         return self
 
+    def enable_idempotence(self, enabled: bool = True) -> "ProducerConfig":
+        """
+        Enable idempotent producer (requires acks=all).
+
+        When enabled, the producer will ensure that messages are delivered
+        exactly once and in order per partition.
+
+        Args:
+            enabled: True to enable idempotence (default: True)
+
+        Returns:
+            Self for method chaining
+        """
+        self._config["enable.idempotence"] = enabled
+        return self
+
+    def transactional_id(self, txn_id: str) -> "ProducerConfig":
+        """
+        Set the transactional ID for exactly-once semantics.
+
+        Requires ``enable_idempotence(True)`` and ``acks("all")``.
+
+        Args:
+            txn_id: Unique transactional identifier
+
+        Returns:
+            Self for method chaining
+        """
+        self._config["transactional.id"] = txn_id
+        return self
+
     def stats_interval_ms(self, milliseconds: int) -> "ProducerConfig":
         """
         Enable statistics reporting at the given interval.
@@ -316,13 +350,13 @@ class ProducerConfig(_SecurityConfigMixin):
         Build and return the configuration dictionary.
 
         Args:
-            validate: If True, verify that required fields (bootstrap.servers) are set.
+            validate: If True, verify required fields and configuration consistency.
 
         Returns:
             Configuration dict ready for KafkaProducer
 
         Raises:
-            ValueError: If validate is True and required fields are missing.
+            ConfigurationError: If validate is True and configuration is invalid.
 
         Examples:
             >>> config = (ProducerConfig()
@@ -333,9 +367,100 @@ class ProducerConfig(_SecurityConfigMixin):
             >>> producer = KafkaProducer(config)
         """
         if validate:
+            errors: list[str] = []
             if "bootstrap.servers" not in self._config:
-                raise ValueError("bootstrap.servers is required")
+                errors.append("bootstrap.servers is required")
+            if self._config.get("enable.idempotence") and self._config.get("acks") not in (
+                "all",
+                -1,
+            ):
+                errors.append("enable.idempotence=True requires acks='all'")
+            if "transactional.id" in self._config and not self._config.get("enable.idempotence"):
+                errors.append("transactional.id requires enable.idempotence=True")
+            if errors:
+                raise ConfigurationError("; ".join(errors))
         return self._config.copy()
+
+    @classmethod
+    def high_throughput(cls, bootstrap_servers: str) -> "ProducerConfig":
+        """Preset for high-throughput scenarios.
+
+        Configures lz4 compression, acks=1, batching with 50ms linger
+        and 64KB batch size.
+
+        Args:
+            bootstrap_servers: Broker addresses
+
+        Returns:
+            Pre-configured ProducerConfig
+        """
+        return (
+            cls()
+            .bootstrap_servers(bootstrap_servers)
+            .acks("1")
+            .compression("lz4")
+            .linger_ms(50)
+            .batch_size(65536)
+        )
+
+    @classmethod
+    def exactly_once(cls, bootstrap_servers: str, transactional_id: str) -> "ProducerConfig":
+        """Preset for exactly-once semantics.
+
+        Configures idempotent, transactional producer with acks=all.
+
+        Args:
+            bootstrap_servers: Broker addresses
+            transactional_id: Unique transactional identifier
+
+        Returns:
+            Pre-configured ProducerConfig
+        """
+        return (
+            cls()
+            .bootstrap_servers(bootstrap_servers)
+            .acks("all")
+            .enable_idempotence(True)
+            .transactional_id(transactional_id)
+        )
+
+    @classmethod
+    def from_env(cls, prefix: str = "KAFKA_") -> "ProducerConfig":
+        """Load configuration from environment variables.
+
+        Reads environment variables with the given prefix and maps them
+        to producer configuration options.
+
+        Supported variables:
+            - ``{prefix}BOOTSTRAP_SERVERS``
+            - ``{prefix}ACKS``
+            - ``{prefix}COMPRESSION``
+            - ``{prefix}LINGER_MS``
+            - ``{prefix}TRANSACTIONAL_ID``
+
+        Args:
+            prefix: Environment variable prefix (default: "KAFKA_")
+
+        Returns:
+            ProducerConfig with values from environment
+        """
+        config = cls()
+        val = os.environ.get(f"{prefix}BOOTSTRAP_SERVERS")
+        if val is not None:
+            config.bootstrap_servers(val)
+        val = os.environ.get(f"{prefix}ACKS")
+        if val is not None:
+            config.acks(val)  # type: ignore[arg-type]
+        val = os.environ.get(f"{prefix}COMPRESSION")
+        if val is not None:
+            config.compression(val)  # type: ignore[arg-type]
+        val = os.environ.get(f"{prefix}LINGER_MS")
+        if val is not None:
+            config.linger_ms(int(val))
+        val = os.environ.get(f"{prefix}TRANSACTIONAL_ID")
+        if val is not None:
+            config.transactional_id(val)
+        return config
 
 
 class ConsumerConfig(_SecurityConfigMixin):
@@ -549,11 +674,41 @@ class ConsumerConfig(_SecurityConfigMixin):
             Configuration dict ready for KafkaConsumer
 
         Raises:
-            ValueError: If validate is True and required fields are missing.
+            ConfigurationError: If validate is True and required fields are missing.
         """
         if validate:
+            errors: list[str] = []
             if "bootstrap.servers" not in self._config:
-                raise ValueError("bootstrap.servers is required")
+                errors.append("bootstrap.servers is required")
             if "group.id" not in self._config:
-                raise ValueError("group.id is required")
+                errors.append("group.id is required")
+            if errors:
+                raise ConfigurationError("; ".join(errors))
         return self._config.copy()
+
+    @classmethod
+    def from_env(cls, prefix: str = "KAFKA_") -> "ConsumerConfig":
+        """Load configuration from environment variables.
+
+        Supported variables:
+            - ``{prefix}BOOTSTRAP_SERVERS``
+            - ``{prefix}GROUP_ID``
+            - ``{prefix}AUTO_OFFSET_RESET``
+
+        Args:
+            prefix: Environment variable prefix (default: "KAFKA_")
+
+        Returns:
+            ConsumerConfig with values from environment
+        """
+        config = cls()
+        val = os.environ.get(f"{prefix}BOOTSTRAP_SERVERS")
+        if val is not None:
+            config.bootstrap_servers(val)
+        val = os.environ.get(f"{prefix}GROUP_ID")
+        if val is not None:
+            config.group_id(val)
+        val = os.environ.get(f"{prefix}AUTO_OFFSET_RESET")
+        if val is not None:
+            config.auto_offset_reset(val)  # type: ignore[arg-type]
+        return config
