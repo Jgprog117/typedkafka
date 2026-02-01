@@ -10,7 +10,7 @@ from collections import defaultdict
 from typing import Any, Callable, Optional
 
 #: Type alias for delivery report callbacks (matches producer.DeliveryCallback).
-DeliveryCallback = Callable[[Optional[Exception], Any], None]
+DeliveryCallback = Callable[[Optional[Any], Any], None]
 
 
 class MockMessage:

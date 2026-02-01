@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.4.0]
+
+### Added
+- Consumer offset management: `seek()`, `assignment()`, `assign()`, `position()` methods on `KafkaConsumer`
+- `poll_batch()` method on `KafkaConsumer` for consuming multiple messages at once
+- Security config helpers: `sasl_plain()`, `sasl_scram()`, `ssl()` on both `ProducerConfig` and `ConsumerConfig`
+- Config validation: `build(validate=True)` checks for required fields (`bootstrap.servers`, `group.id`)
+- `MockMessage` now matches `KafkaMessage` interface: `value_as_string()`, `value_as_json()`, `key_as_string()`, `__repr__()`
+- `MockConsumer` offset management: `seek()`, `assignment()`, `assign()`, `position()`, `poll_batch()`
+- `DeliveryCallback` type alias for delivery report callbacks in producer and testing modules
+- `KafkaMessage` added to top-level `__all__` exports
+
+### Changed
+- Async consumer `poll()` now returns `KafkaMessage` instead of raw confluent-kafka message
+- Async consumer `__aiter__` yields `KafkaMessage` objects for API consistency
+- Async producer and consumer docstrings now document ThreadPoolExecutor wrapping limitation
+
+### Fixed
+- Delivery callback type annotations now compatible with mypy strict checking
+
 ## [0.3.3]
 
 ### Added

@@ -19,7 +19,7 @@ from typedkafka.exceptions import ProducerError, SerializationError
 
 #: Type alias for delivery report callbacks.
 #: The callback receives an optional error and the message object.
-DeliveryCallback = Callable[[Optional[Exception], Any], None]
+DeliveryCallback = Callable[[Optional[Any], Any], None]
 
 
 class KafkaProducer:

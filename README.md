@@ -16,9 +16,10 @@ typedkafka provides a modern Python interface to Apache Kafka with comprehensive
 - Async producer and consumer (`asyncio`)
 - Retry utilities with exponential backoff
 - Pluggable serializer framework (JSON, String, Avro/Schema Registry)
-- Testing utilities (MockProducer/MockConsumer)
-- Type-safe configuration builders with validation
+- Testing utilities (MockProducer/MockConsumer) with full KafkaMessage API parity
+- Type-safe configuration builders with validation and security helpers (SASL, SSL)
 - Admin client for topic management
+- Batch polling and consumer offset management (seek, assign, position)
 
 ## Why typedkafka?
 
@@ -59,6 +60,23 @@ with KafkaConsumer({"bootstrap.servers": "localhost:9092", "group.id": "my-group
     for msg in consumer:
         print(msg.value_as_json())
         consumer.commit(msg)
+```
+
+### Configuration Builders
+
+```python
+from typedkafka import ProducerConfig, KafkaProducer
+
+config = (
+    ProducerConfig()
+    .bootstrap_servers("broker:9093")
+    .sasl_scram("user", "password")
+    .acks("all")
+    .compression("gzip")
+    .build(validate=True)
+)
+
+producer = KafkaProducer(config)
 ```
 
 See the [`examples/`](examples/) directory for more: transactions, async, retry, serializers, batch send, testing mocks, and config builders.
