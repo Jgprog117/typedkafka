@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.0]
+
+### Added
+- **Type-safe topics**: `TypedTopic[T]` generic class binding a topic name to serializer/deserializer pairs; `json_topic()` and `string_topic()` factory functions; `KafkaProducer.send_typed()` and `KafkaMessage.decode()` methods
+- **Structured logging**: `KafkaLogger` wrapper for stdlib `logging.Logger` with Kafka-specific context; `LogContext` dataclass; automatic logging in producer send, consumer poll/commit, and transaction lifecycle
+- **Cookbook**: 7 recipes in `docs/cookbook.md` — exactly-once processing, fan-out, graceful shutdown, typed topics, structured logging, consumer lag monitoring, dead letter queue with retry
+- API documentation for topics and logging modules
+- Expanded integration tests from 25 to 70
+
+### Changed
+- Test coverage: 446+ tests
+
 ## [0.6.0]
 
 ### Added

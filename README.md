@@ -10,28 +10,22 @@ A well-documented, fully type-hinted Kafka client for Python.
 typedkafka provides a modern Python interface to Apache Kafka with comprehensive documentation, full type hints, and developer-friendly features. Built on confluent-kafka for performance and reliability.
 
 **Key Features:**
-- Full type hints and comprehensive docstrings on every public method
-- JSON, string, bytes, Protobuf, and Avro/Schema Registry serialization
-- Transaction support with context managers
-- Async producer and consumer (`asyncio`) with batch consumption
-- Retry utilities with exponential backoff
-- OpenTelemetry tracing (`KafkaTracer`) with graceful no-op fallback
-- Metrics collection and statistics tracking (`KafkaMetrics`, `KafkaStats`)
-- Dead letter queue (`DeadLetterQueue`, `process_with_dlq`)
-- Type-safe configuration builders with presets, validation, env loading, and security helpers
-- Testing utilities (`MockProducer`, `MockConsumer`, `MockDeadLetterQueue`) with full API parity
-- Structured exception hierarchy with error context
-- Admin client for topic management
-- Consumer offset management, batch polling, and message headers
+- Full type hints and IDE autocomplete on every public method
+- Type-safe topics with generic serialization/deserialization
+- Transactions, async, retry, and batch operations built in
+- Pluggable serializers: JSON, string, Protobuf, Avro/Schema Registry
+- Structured logging, metrics, OpenTelemetry tracing, and dead letter queues
+- Testing mocks with full API parity — no broker needed for unit tests
+- Type-safe config builders with presets, validation, and security helpers
 
 ## Why typedkafka?
 
-confluent-kafka is fast and reliable, but working with it in Python often means guessing at argument types, cross-referencing C library docs, and getting cryptic error messages. typedkafka fixes that:
+confluent-kafka is fast and reliable, but its Python API lacks type hints, has sparse docs, and surfaces raw C-level errors. typedkafka wraps it with a modern, Pythonic interface:
 
-- **IDE autocomplete that works** — full type hints and parameter docs on every method, so you're not guessing at argument types or return values
-- **Clear error messages** — a proper exception hierarchy instead of cryptic confluent-kafka errors
-- **Test without a broker** — MockProducer and MockConsumer let you write unit tests without Docker or flaky integration setups
-- **Less boilerplate** — transactions, async, retry, and serialization are built in instead of requiring manual wiring
+- **Type safety** — full type hints, generic `TypedTopic[T]`, and IDE autocomplete so you catch mistakes before runtime
+- **Batteries included** — transactions, async, retry, serialization, logging, metrics, and dead letter queues out of the box
+- **Testable** — mock producer/consumer with full API parity; write unit tests without Docker
+- **Observable** — structured logging, OpenTelemetry tracing, and metrics collection built in
 
 ## Installation
 
