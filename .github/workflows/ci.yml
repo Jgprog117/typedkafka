@@ -32,7 +32,7 @@ jobs:
         pytest --cov=typedkafka --cov-report=xml --cov-report=term
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@79066c46f8dcdf8d7355f820dbac958c5b4cb9d3 # v4.5.0
+      uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4.5.0
       with:
         file: ./coverage.xml
         fail_ci_if_error: false
