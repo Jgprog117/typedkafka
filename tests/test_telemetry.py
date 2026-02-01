@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -70,7 +70,7 @@ class TestKafkaTracerWithOtel:
     def test_produce_span_records_exception(self):
         tracer, mock_otel_tracer, mock_span = self._make_tracer_with_mock()
         with pytest.raises(ValueError, match="boom"):
-            with tracer.produce_span("events") as span:
+            with tracer.produce_span("events") as _:
                 raise ValueError("boom")
         mock_span.record_exception.assert_called_once()
         mock_span.set_status.assert_called_once()
@@ -78,7 +78,7 @@ class TestKafkaTracerWithOtel:
     def test_consume_span_records_exception(self):
         tracer, mock_otel_tracer, mock_span = self._make_tracer_with_mock()
         with pytest.raises(RuntimeError, match="fail"):
-            with tracer.consume_span("events", partition=0, offset=0) as span:
+            with tracer.consume_span("events", partition=0, offset=0) as _:
                 raise RuntimeError("fail")
         mock_span.record_exception.assert_called_once()
         mock_span.set_status.assert_called_once()
