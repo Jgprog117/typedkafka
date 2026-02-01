@@ -15,12 +15,18 @@ typedkafka provides a modern Python interface to Apache Kafka with comprehensive
 - Transaction support with context managers
 - Async producer and consumer (`asyncio`)
 - Retry utilities with exponential backoff
-- Pluggable serializer framework (JSON, String, Avro/Schema Registry)
+- Pluggable serializer framework (JSON, String, Avro/Schema Registry, Protobuf)
 - Metrics collection and statistics tracking (`KafkaMetrics`, `KafkaStats`)
 - Dead letter queue helper (`DeadLetterQueue`, `process_with_dlq`)
+- OpenTelemetry tracing integration (`KafkaTracer`)
 - Message headers support on `send()`
 - Testing utilities (MockProducer/MockConsumer/MockDeadLetterQueue) with full API parity
-- Type-safe configuration builders with validation and security helpers (SASL, SSL)
+- Type-safe configuration builders with validation, presets, and security helpers (SASL, SSL)
+- Configuration presets (`ProducerConfig.high_throughput()`, `exactly_once()`)
+- Environment-based config loading (`from_env()`)
+- Generic consumer deserialization (`value_as()`, `value_deserializer`)
+- Async batch consumption (`batch_consume()`)
+- Enhanced exception hierarchy with structured error context
 - Admin client for topic management
 - Batch polling and consumer offset management (seek, assign, position)
 
@@ -40,6 +46,12 @@ pip install typedkafka
 
 # With Avro/Schema Registry support
 pip install typedkafka[avro]
+
+# With Protobuf support
+pip install typedkafka[protobuf]
+
+# Everything
+pip install typedkafka[all]
 ```
 
 Requires Python 3.9+.

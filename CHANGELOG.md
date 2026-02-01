@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Enhanced exceptions**: `KafkaErrorContext` dataclass for structured error metadata; new `ConfigurationError` and `TransactionError` exception classes
+- **Configuration presets**: `ProducerConfig.high_throughput()` and `exactly_once()` class methods for common setups
+- **Environment config loading**: `ProducerConfig.from_env()` and `ConsumerConfig.from_env()` for 12-factor app config
+- `enable_idempotence()` and `transactional_id()` methods on `ProducerConfig`
+- Cross-field configuration validation (e.g. idempotence requires `acks=all`)
+- **Generic consumer deserialization**: `KafkaMessage.value_as(deserializer)` and `value_deserializer` parameter on `KafkaConsumer`
+- **Async improvements**: `AsyncKafkaProducer.send_string()`, `MessageBatch` class, `batch_consume()` async generator
+- **Testing enhancements**: `fail_on_topics` on `MockProducer`, `message_count()`, `get_json_messages()`, `MockConsumer.add_string_message()`
+- **Integration test infrastructure**: `tests/integration/` with Docker Compose and CI workflow for Kafka broker tests
+- **Protobuf serialization**: `ProtobufSerializer`, `ProtobufDeserializer`, `SchemaRegistryProtobufSerializer`, and helper functions in `typedkafka.protobuf`
+- **OpenTelemetry tracing**: `KafkaTracer` with `produce_span()` and `consume_span()` context managers following OTel semantic conventions; graceful no-op when OTel is not installed
+- `protobuf` and `all` optional dependency groups
+- GitHub Pages docs deployment workflow
+- Test coverage: 342 tests (up from 320)
+
 ## [0.5.0]
 
 ### Added
