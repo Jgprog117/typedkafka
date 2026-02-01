@@ -652,7 +652,7 @@ class KafkaConsumer:
             if msg:
                 yield msg
 
-    def __enter__(self) -> "KafkaConsumer":
+    def __enter__(self) -> KafkaConsumer:
         """Enter context manager."""
         return self
 

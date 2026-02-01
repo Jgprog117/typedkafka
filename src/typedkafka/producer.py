@@ -401,7 +401,7 @@ class KafkaProducer:
         """
         self.flush()
 
-    def __enter__(self) -> "KafkaProducer":
+    def __enter__(self) -> KafkaProducer:
         """
         Enter context manager.
 
@@ -559,7 +559,7 @@ class KafkaProducer:
                 original_error=e,
             ) from e
 
-    def transaction(self) -> "TransactionContext":
+    def transaction(self) -> TransactionContext:
         """
         Return a context manager for transactional sends.
 
@@ -602,7 +602,7 @@ class TransactionContext:
     def __init__(self, producer: KafkaProducer):
         self._producer = producer
 
-    def __enter__(self) -> "TransactionContext":
+    def __enter__(self) -> TransactionContext:
         self._producer.begin_transaction()
         return self
 
