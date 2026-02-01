@@ -1,6 +1,6 @@
 """Tests for KafkaConsumer and KafkaMessage."""
 
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -286,7 +286,7 @@ class TestKafkaConsumerWithMock:
         consumer._consumer.poll.return_value = None
 
         # Just call next once to verify timeout is used
-        it = iter(consumer)
+        iter(consumer)
         # poll returns None so iter loops - we check the call was made with correct timeout
         consumer._consumer.poll.side_effect = [None, None]
         # We can't easily break an infinite loop, so test via poll call
