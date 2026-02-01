@@ -34,16 +34,16 @@ class TestAdminIntegration:
             admin.delete_topic(unique_topic)
 
     def test_describe_topic(self, producer_config, unique_topic):
-        from typedkafka import KafkaAdmin, TopicConfig
+        from typedkafka import KafkaAdmin
 
         admin = KafkaAdmin(producer_config)
         admin.create_topic(unique_topic, num_partitions=3, replication_factor=1)
 
         try:
             info = admin.describe_topic(unique_topic)
-            assert isinstance(info, TopicConfig)
-            assert info.name == unique_topic
-            assert info.num_partitions == 3
+            assert isinstance(info, dict)
+            assert info["topic"] == unique_topic
+            assert len(info["partitions"]) == 3
         finally:
             admin.delete_topic(unique_topic)
 
