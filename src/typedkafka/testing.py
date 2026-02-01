@@ -178,14 +178,21 @@ class MockProducer:
         flushed: Whether flush() has been called
     """
 
-    def __init__(self, config: Optional[dict[str, Any]] = None):
+    def __init__(
+        self,
+        config: Optional[dict[str, Any]] = None,
+        fail_on_topics: Optional[set[str]] = None,
+    ):
         """
         Initialize a mock producer.
 
         Args:
             config: Optional config dict (ignored, but accepted for compatibility)
+            fail_on_topics: Optional set of topic names that will cause send() to raise
+                ProducerError. Useful for testing error handling paths.
         """
         self.config = config or {}
+        self._fail_on_topics = fail_on_topics or set()
         self._metrics = KafkaMetrics()
         self.messages: dict[str, list[MockMessage]] = defaultdict(list)
         self.call_count = 0
@@ -223,6 +230,14 @@ class MockProducer:
             >>> producer.send("events", b"data", key=b"key-1")
             >>> assert len(producer.messages["events"]) == 1
         """
+        if topic in self._fail_on_topics:
+            from typedkafka.exceptions import ProducerError
+
+            self._metrics.errors += 1
+            if on_delivery:
+                on_delivery(Exception(f"Mock failure for topic {topic}"), None)
+            raise ProducerError(f"Mock failure for topic {topic}")
+
         self.call_count += 1
         offset = len(self.messages[topic])
 
@@ -295,6 +310,28 @@ class MockProducer:
         value_bytes = value.encode("utf-8")
         key_bytes = key.encode("utf-8") if key else None
         self.send(topic, value_bytes, key=key_bytes, partition=partition, on_delivery=on_delivery)
+
+    def message_count(self, topic: str) -> int:
+        """Get count of messages sent to a topic.
+
+        Args:
+            topic: Topic name
+
+        Returns:
+            Number of messages sent to the topic
+        """
+        return len(self.messages[topic])
+
+    def get_json_messages(self, topic: str) -> list[Any]:
+        """Get all messages for a topic deserialized as JSON.
+
+        Args:
+            topic: Topic name
+
+        Returns:
+            List of deserialized JSON values
+        """
+        return [m.value_as_json() for m in self.messages[topic]]
 
     def send_batch(
         self,
@@ -511,6 +548,26 @@ class MockConsumer:
             >>> consumer.add_json_message("events", {"user_id": 123, "action": "click"})
         """
         value_bytes = _json.dumps(value).encode("utf-8")
+        key_bytes = key.encode("utf-8") if key else None
+        self.add_message(topic, value_bytes, key=key_bytes, partition=partition)
+
+    def add_string_message(
+        self,
+        topic: str,
+        value: str,
+        key: Optional[str] = None,
+        partition: int = 0,
+    ) -> None:
+        """
+        Add a string message to be consumed.
+
+        Args:
+            topic: Topic name
+            value: String value
+            key: Optional string key
+            partition: Partition number
+        """
+        value_bytes = value.encode("utf-8")
         key_bytes = key.encode("utf-8") if key else None
         self.add_message(topic, value_bytes, key=key_bytes, partition=partition)
 
