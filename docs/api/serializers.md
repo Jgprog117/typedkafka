@@ -11,3 +11,7 @@
 ::: typedkafka.serializers.StringSerializer
 
 ::: typedkafka.serializers.StringDeserializer
+
+::: typedkafka.serializers.AvroSerializer
+
+::: typedkafka.serializers.AvroDeserializer

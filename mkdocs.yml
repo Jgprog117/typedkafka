@@ -35,6 +35,8 @@ nav:
       - Metrics: api/metrics.md
       - Dead Letter Queue: api/dlq.md
       - Testing: api/testing.md
+      - Telemetry: api/telemetry.md
+      - Protobuf: api/protobuf.md
       - Exceptions: api/exceptions.md
   - Changelog: changelog.md
 
