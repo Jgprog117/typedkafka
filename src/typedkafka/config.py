@@ -268,6 +268,30 @@ class ProducerConfig(_SecurityConfigMixin):
         self._config["retries"] = count
         return self
 
+    def stats_interval_ms(self, milliseconds: int) -> "ProducerConfig":
+        """
+        Enable statistics reporting at the given interval.
+
+        When set, confluent-kafka will emit internal statistics at this interval.
+        Use the ``on_stats`` parameter on ``KafkaProducer`` to receive parsed stats.
+
+        Args:
+            milliseconds: Stats reporting interval in milliseconds (e.g. 5000 for every 5s).
+
+        Returns:
+            Self for method chaining
+
+        Raises:
+            ValueError: If milliseconds is negative.
+
+        Examples:
+            >>> config = ProducerConfig().stats_interval_ms(5000).build()
+        """
+        if milliseconds < 0:
+            raise ValueError(f"stats_interval_ms must be non-negative, got {milliseconds}")
+        self._config["statistics.interval.ms"] = milliseconds
+        return self
+
     def set(self, key: str, value: Any) -> "ProducerConfig":
         """
         Set a custom configuration parameter.
@@ -473,6 +497,30 @@ class ConsumerConfig(_SecurityConfigMixin):
             Self for method chaining
         """
         self._config["max.poll.records"] = count
+        return self
+
+    def stats_interval_ms(self, milliseconds: int) -> "ConsumerConfig":
+        """
+        Enable statistics reporting at the given interval.
+
+        When set, confluent-kafka will emit internal statistics at this interval.
+        Use the ``on_stats`` parameter on ``KafkaConsumer`` to receive parsed stats.
+
+        Args:
+            milliseconds: Stats reporting interval in milliseconds (e.g. 5000 for every 5s).
+
+        Returns:
+            Self for method chaining
+
+        Raises:
+            ValueError: If milliseconds is negative.
+
+        Examples:
+            >>> config = ConsumerConfig().stats_interval_ms(5000).build()
+        """
+        if milliseconds < 0:
+            raise ValueError(f"stats_interval_ms must be non-negative, got {milliseconds}")
+        self._config["statistics.interval.ms"] = milliseconds
         return self
 
     def set(self, key: str, value: Any) -> "ConsumerConfig":

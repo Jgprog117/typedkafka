@@ -19,6 +19,7 @@ except ImportError:
     TopicPartition = None  # type: ignore[assignment,misc]
 
 from typedkafka.exceptions import ConsumerError, SerializationError
+from typedkafka.metrics import KafkaMetrics, StatsCallback, make_stats_cb
 
 
 class KafkaMessage:
@@ -173,7 +174,11 @@ class KafkaConsumer:
         config: The configuration dictionary used to initialize the consumer
     """
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(
+        self,
+        config: dict[str, Any],
+        on_stats: Optional[StatsCallback] = None,
+    ):
         """
         Initialize a Kafka consumer with the given configuration.
 
@@ -188,6 +193,9 @@ class KafkaConsumer:
                 - auto.commit.interval.ms (int): Frequency of offset commits in milliseconds
                 - max.poll.interval.ms (int): Max time between polls before being kicked from group
                 - session.timeout.ms (int): Timeout for detecting consumer failures
+                - statistics.interval.ms (int): Stats reporting interval in milliseconds
+            on_stats: Optional callback receiving parsed KafkaStats each reporting interval.
+                Requires ``statistics.interval.ms`` to be set in config.
 
         Raises:
             ConsumerError: If the consumer cannot be initialized
@@ -200,20 +208,25 @@ class KafkaConsumer:
             ...     "auto.offset.reset": "earliest"
             ... })
 
-            >>> # Consumer with manual offset management
+            >>> # Consumer with metrics
             >>> consumer = KafkaConsumer({
             ...     "bootstrap.servers": "localhost:9092",
             ...     "group.id": "my-group",
-            ...     "enable.auto.commit": False
+            ...     "statistics.interval.ms": 5000,
             ... })
+            >>> print(consumer.metrics.messages_received)
         """
         if ConfluentConsumer is None:
             raise ImportError(
                 "confluent-kafka is required. Install with: pip install confluent-kafka"
             )
 
+        self._metrics = KafkaMetrics()
         self.config = config
         self.poll_timeout: float = 1.0
+        if config.get("statistics.interval.ms"):
+            config = dict(config)
+            config["stats_cb"] = make_stats_cb(self._metrics, on_stats)
         try:
             self._consumer = ConfluentConsumer(config)
         except Exception as e:
@@ -221,6 +234,14 @@ class KafkaConsumer:
                 f"Failed to initialize Kafka consumer: {e}",
                 original_error=e,
             ) from e
+
+    @property
+    def metrics(self) -> KafkaMetrics:
+        """Current metrics for this consumer.
+
+        Tracks messages received, errors, and (if stats enabled) byte throughput.
+        """
+        return self._metrics
 
     def subscribe(
         self,
@@ -307,11 +328,14 @@ class KafkaConsumer:
             if raw_msg is None:
                 return None
             if raw_msg.error():
+                self._metrics.errors += 1
                 raise ConsumerError(f"Consumer error: {raw_msg.error()}")
+            self._metrics.messages_received += 1
             return KafkaMessage(raw_msg)
         except ConsumerError:
             raise
         except Exception as e:
+            self._metrics.errors += 1
             raise ConsumerError(
                 f"Error while polling: {e}",
                 original_error=e,

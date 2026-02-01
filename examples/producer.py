@@ -12,4 +12,7 @@ with KafkaProducer({"bootstrap.servers": "localhost:9092"}) as producer:
     # Send a string
     producer.send_string("logs", "Application started")
 
+    # Send with headers
+    producer.send("events", b"traced", headers=[("trace-id", b"abc123")])
+
     producer.flush()

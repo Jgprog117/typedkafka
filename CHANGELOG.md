@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0]
+
+### Added
+- **Metrics collection**: `KafkaMetrics` and `KafkaStats` dataclasses for tracking throughput, errors, and byte counters on producers and consumers
+- `on_stats` callback parameter on `KafkaProducer` and `KafkaConsumer` for receiving parsed statistics from confluent-kafka's `stats_cb`
+- `stats_interval_ms()` method on `ProducerConfig` and `ConsumerConfig` builders
+- `metrics` property on `KafkaProducer`, `KafkaConsumer`, `MockProducer`, and `MockConsumer`
+- **Dead Letter Queue**: `DeadLetterQueue` class for routing failed messages to a DLQ topic with error metadata headers
+- `process_with_dlq()` helper for try/except message processing with automatic DLQ routing
+- `headers` parameter on `KafkaProducer.send()` and `MockProducer.send()` for attaching Kafka headers to messages
+- `MockDeadLetterQueue` in `typedkafka.testing` for unit testing DLQ logic without a broker
+- New examples: `examples/metrics.py`, `examples/dead_letter_queue.py`
+- Updated examples: headers in `producer.py`, stats/security in `config_builders.py`, metrics and DLQ in `testing_mocks.py`
+- Test coverage: 320 tests (up from 294)
+
 ## [0.4.0]
 
 ### Added

@@ -142,10 +142,12 @@ class TestKafkaConsumerWithMock:
     @pytest.fixture
     def consumer(self):
         """Create a KafkaConsumer with a mocked internal consumer."""
+        from typedkafka.metrics import KafkaMetrics
         c = KafkaConsumer.__new__(KafkaConsumer)
         c.config = {"bootstrap.servers": "localhost:9092", "group.id": "test"}
         c.poll_timeout = 1.0
         c._consumer = MagicMock()
+        c._metrics = KafkaMetrics()
         return c
 
     def test_subscribe(self, consumer):
@@ -300,10 +302,12 @@ class TestConsumerOffsetManagement:
     @pytest.fixture
     def consumer(self):
         """Create a KafkaConsumer with a mocked internal consumer."""
+        from typedkafka.metrics import KafkaMetrics
         c = KafkaConsumer.__new__(KafkaConsumer)
         c.config = {"bootstrap.servers": "localhost:9092", "group.id": "test"}
         c.poll_timeout = 1.0
         c._consumer = MagicMock()
+        c._metrics = KafkaMetrics()
         return c
 
     def test_seek(self, consumer):

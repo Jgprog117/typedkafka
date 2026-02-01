@@ -16,6 +16,7 @@ except ImportError:
     ConfluentKafkaError = None  # type: ignore[assignment,misc]
 
 from typedkafka.exceptions import ProducerError, SerializationError
+from typedkafka.metrics import KafkaMetrics, StatsCallback, make_stats_cb
 
 #: Type alias for delivery report callbacks.
 #: The callback receives an optional error and the message object.
@@ -50,7 +51,11 @@ class KafkaProducer:
         config: The configuration dictionary used to initialize the producer
     """
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(
+        self,
+        config: dict[str, Any],
+        on_stats: Optional[StatsCallback] = None,
+    ):
         """
         Initialize a Kafka producer with the given configuration.
 
@@ -65,6 +70,9 @@ class KafkaProducer:
                 - max.in.flight.requests.per.connection (int): Max unacknowledged requests
                 - linger.ms (int): Time to wait before sending a batch
                 - batch.size (int): Maximum size of a message batch in bytes
+                - statistics.interval.ms (int): Stats reporting interval in milliseconds
+            on_stats: Optional callback receiving parsed KafkaStats each reporting interval.
+                Requires ``statistics.interval.ms`` to be set in config.
 
         Raises:
             ProducerError: If the producer cannot be initialized with the given config
@@ -73,19 +81,24 @@ class KafkaProducer:
             >>> # Basic producer
             >>> producer = KafkaProducer({"bootstrap.servers": "localhost:9092"})
 
-            >>> # Producer with compression
+            >>> # Producer with metrics
             >>> producer = KafkaProducer({
             ...     "bootstrap.servers": "localhost:9092",
-            ...     "compression.type": "gzip",
-            ...     "acks": "all"
+            ...     "statistics.interval.ms": 5000,
             ... })
+            >>> print(producer.metrics.messages_sent)
         """
         if ConfluentProducer is None:
             raise ImportError(
                 "confluent-kafka is required. Install with: pip install confluent-kafka"
             )
 
+        self._metrics = KafkaMetrics()
         self.config = config
+        # Inject stats callback if stats interval is configured
+        if config.get("statistics.interval.ms"):
+            config = dict(config)
+            config["stats_cb"] = make_stats_cb(self._metrics, on_stats)
         try:
             self._producer = ConfluentProducer(config)
         except Exception as e:
@@ -94,6 +107,14 @@ class KafkaProducer:
                 original_error=e,
             ) from e
 
+    @property
+    def metrics(self) -> KafkaMetrics:
+        """Current metrics for this producer.
+
+        Tracks messages sent, errors, and (if stats enabled) byte throughput.
+        """
+        return self._metrics
+
     def send(
         self,
         topic: str,
@@ -101,6 +122,7 @@ class KafkaProducer:
         key: Optional[bytes] = None,
         partition: Optional[int] = None,
         on_delivery: Optional[DeliveryCallback] = None,
+        headers: Optional[list[tuple[str, bytes]]] = None,
     ) -> None:
         """
         Send a message to a Kafka topic.
@@ -115,6 +137,7 @@ class KafkaProducer:
             partition: Optional partition number. If None, partition is chosen by the partitioner.
             on_delivery: Optional callback function called when delivery succeeds or fails.
                 Signature: callback(error, message)
+            headers: Optional list of (key, value) header tuples to include with the message.
 
         Raises:
             ProducerError: If the message cannot be queued (e.g., queue is full)
@@ -126,33 +149,31 @@ class KafkaProducer:
             >>> # Send with a key for partitioning
             >>> producer.send("user-events", b"event data", key=b"user-123")
 
-            >>> # Send to a specific partition
-            >>> producer.send("my-topic", b"data", partition=0)
-
-            >>> # Send with delivery callback
-            >>> def on_delivery(err, msg):
-            ...     if err:
-            ...         print(f"Delivery failed: {err}")
-            ...     else:
-            ...         print(f"Delivered to {msg.topic()} [{msg.partition()}]")
-            >>> producer.send("topic", b"data", on_delivery=on_delivery)
+            >>> # Send with headers
+            >>> producer.send("topic", b"data", headers=[("trace-id", b"abc123")])
         """
         try:
-            self._producer.produce(
-                topic=topic,
-                value=value,
-                key=key,
-                partition=partition,  # type: ignore[arg-type]
-                on_delivery=on_delivery,
-            )
+            kwargs: dict[str, Any] = {
+                "topic": topic,
+                "value": value,
+                "key": key,
+                "partition": partition,
+                "on_delivery": on_delivery,
+            }
+            if headers is not None:
+                kwargs["headers"] = headers
+            self._producer.produce(**kwargs)  # type: ignore[arg-type]
             # Poll to trigger callbacks and handle backpressure
             self._producer.poll(0)
+            self._metrics.messages_sent += 1
         except BufferError as e:
+            self._metrics.errors += 1
             raise ProducerError(
                 "Message queue is full. Try calling flush() or increasing queue.buffering.max.messages",
                 original_error=e,
             ) from e
         except Exception as e:
+            self._metrics.errors += 1
             raise ProducerError(
                 f"Failed to send message to topic '{topic}': {e}",
                 original_error=e,

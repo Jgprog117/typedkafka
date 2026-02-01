@@ -6,8 +6,11 @@ making it easy to write fast, reliable unit tests for code that uses Kafka.
 """
 
 import json as _json
+import time as _time
 from collections import defaultdict
 from typing import Any, Callable, Optional
+
+from typedkafka.metrics import KafkaMetrics
 
 #: Type alias for delivery report callbacks (matches producer.DeliveryCallback).
 DeliveryCallback = Callable[[Optional[Any], Any], None]
@@ -162,12 +165,18 @@ class MockProducer:
             config: Optional config dict (ignored, but accepted for compatibility)
         """
         self.config = config or {}
+        self._metrics = KafkaMetrics()
         self.messages: dict[str, list[MockMessage]] = defaultdict(list)
         self.call_count = 0
         self.flushed = False
         self._closed = False
         self._in_transaction = False
         self._transaction_messages: list[tuple[str, MockMessage]] = []
+
+    @property
+    def metrics(self) -> KafkaMetrics:
+        """Current metrics for this producer."""
+        return self._metrics
 
     def send(
         self,
@@ -176,6 +185,7 @@ class MockProducer:
         key: Optional[bytes] = None,
         partition: Optional[int] = None,
         on_delivery: Optional[DeliveryCallback] = None,
+        headers: Optional[list[tuple[str, bytes]]] = None,
     ) -> None:
         """
         Record a message send (doesn't actually send to Kafka).
@@ -201,7 +211,9 @@ class MockProducer:
             key=key,
             partition=partition or 0,
             offset=offset,
+            headers=headers,
         )
+        self._metrics.messages_sent += 1
 
         if self._in_transaction:
             self._transaction_messages.append((topic, msg))
@@ -349,6 +361,7 @@ class MockProducer:
         self._closed = False
         self._in_transaction = False
         self._transaction_messages = []
+        self._metrics.reset()
 
     def __enter__(self) -> "MockProducer":
         """Context manager entry."""
@@ -406,6 +419,7 @@ class MockConsumer:
             config: Optional config dict (ignored, but accepted for compatibility)
         """
         self.config = config or {}
+        self._metrics = KafkaMetrics()
         self.messages: list[MockMessage] = []
         self.subscribed_topics: list[str] = []
         self.committed_offsets: dict[tuple[str, int], int] = {}
@@ -479,6 +493,11 @@ class MockConsumer:
         key_bytes = key.encode("utf-8") if key else None
         self.add_message(topic, value_bytes, key=key_bytes, partition=partition)
 
+    @property
+    def metrics(self) -> KafkaMetrics:
+        """Current metrics for this consumer."""
+        return self._metrics
+
     def subscribe(
         self,
         topics: list[str],
@@ -532,6 +551,7 @@ class MockConsumer:
         if self._message_index < len(self.messages):
             msg = self.messages[self._message_index]
             self._message_index += 1
+            self._metrics.messages_received += 1
             return msg
         return None
 
@@ -613,6 +633,7 @@ class MockConsumer:
         self._closed = False
         self._message_index = 0
         self._assignment.clear()
+        self._metrics.reset()
 
     def __iter__(self):
         """
@@ -637,3 +658,71 @@ class MockConsumer:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Context manager exit."""
         self.close()
+
+
+class MockDeadLetterQueue:
+    """In-memory mock of DeadLetterQueue for testing.
+
+    Records messages sent to the DLQ without requiring a real producer.
+
+    Attributes:
+        messages: List of (topic, MockMessage) tuples sent to the DLQ.
+
+    Examples:
+        >>> dlq = MockDeadLetterQueue()
+        >>> dlq.send(msg, error=ValueError("bad"))
+        >>> assert dlq.send_count == 1
+    """
+
+    def __init__(
+        self,
+        topic_fn: Optional[Callable[[str], str]] = None,
+        default_topic: Optional[str] = None,
+    ) -> None:
+        if topic_fn is not None and default_topic is not None:
+            raise ValueError("Cannot specify both topic_fn and default_topic")
+        self._topic_fn = topic_fn or (lambda t: f"{t}.dlq")
+        self._default_topic = default_topic
+        self.messages: list[tuple[str, MockMessage]] = []
+
+    @property
+    def send_count(self) -> int:
+        """Number of messages sent to the DLQ."""
+        return len(self.messages)
+
+    def send(
+        self,
+        message: Any,
+        error: Optional[Exception] = None,
+        extra_headers: Optional[list[tuple[str, bytes]]] = None,
+    ) -> None:
+        """Record a message sent to the DLQ."""
+        dlq_topic = self._default_topic or self._topic_fn(message.topic)
+
+        headers: list[tuple[str, bytes]] = [
+            ("dlq.original.topic", str(message.topic).encode("utf-8")),
+            ("dlq.original.partition", str(message.partition).encode("utf-8")),
+            ("dlq.original.offset", str(message.offset).encode("utf-8")),
+            ("dlq.timestamp", str(int(_time.time())).encode("utf-8")),
+        ]
+
+        if error is not None:
+            headers.append(("dlq.error.message", str(error).encode("utf-8")))
+            headers.append(("dlq.error.type", type(error).__name__.encode("utf-8")))
+
+        if extra_headers:
+            headers.extend(extra_headers)
+
+        dlq_msg = MockMessage(
+            topic=dlq_topic,
+            value=message.value,
+            key=message.key,
+            partition=0,
+            offset=len(self.messages),
+            headers=headers,
+        )
+        self.messages.append((dlq_topic, dlq_msg))
+
+    def reset(self) -> None:
+        """Clear all recorded DLQ messages."""
+        self.messages.clear()

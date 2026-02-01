@@ -42,10 +42,12 @@ class TestProducerWithMock:
     @pytest.fixture
     def producer(self):
         """Create a KafkaProducer with a mocked internal producer."""
+        from typedkafka.metrics import KafkaMetrics
         from typedkafka.producer import KafkaProducer
         p = KafkaProducer.__new__(KafkaProducer)
         p.config = {"bootstrap.servers": "localhost:9092"}
         p._producer = MagicMock()
+        p._metrics = KafkaMetrics()
         return p
 
     def test_send_calls_produce(self, producer):

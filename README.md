@@ -16,7 +16,10 @@ typedkafka provides a modern Python interface to Apache Kafka with comprehensive
 - Async producer and consumer (`asyncio`)
 - Retry utilities with exponential backoff
 - Pluggable serializer framework (JSON, String, Avro/Schema Registry)
-- Testing utilities (MockProducer/MockConsumer) with full KafkaMessage API parity
+- Metrics collection and statistics tracking (`KafkaMetrics`, `KafkaStats`)
+- Dead letter queue helper (`DeadLetterQueue`, `process_with_dlq`)
+- Message headers support on `send()`
+- Testing utilities (MockProducer/MockConsumer/MockDeadLetterQueue) with full API parity
 - Type-safe configuration builders with validation and security helpers (SASL, SSL)
 - Admin client for topic management
 - Batch polling and consumer offset management (seek, assign, position)
@@ -79,7 +82,7 @@ config = (
 producer = KafkaProducer(config)
 ```
 
-See the [`examples/`](examples/) directory for more: transactions, async, retry, serializers, batch send, testing mocks, and config builders.
+See the [`examples/`](examples/) directory for more: transactions, async, retry, serializers, batch send, testing mocks, config builders, metrics, and dead letter queues.
 
 ## Development
 
