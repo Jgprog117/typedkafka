@@ -68,3 +68,43 @@ def test_dead_letter_queue():
     topic, dlq_msg = dlq.messages[0]
     assert topic == "orders.dlq"
     assert dict(dlq_msg.headers)["dlq.error.type"] == b"ValueError"
+
+
+# --- v0.6.0: New mock features ---
+
+
+def test_fail_on_topics():
+    """MockProducer can simulate failures on specific topics."""
+    producer = MockProducer(fail_on_topics=["broken-topic"])
+    producer.send("good-topic", b"ok")  # succeeds
+    try:
+        producer.send("broken-topic", b"fail")
+    except Exception:
+        pass  # expected to raise
+
+
+def test_message_count():
+    """message_count() returns total across all topics."""
+    producer = MockProducer()
+    producer.send("t1", b"a")
+    producer.send("t2", b"b")
+    producer.send("t1", b"c")
+    assert producer.message_count() == 3
+
+
+def test_get_json_messages():
+    """get_json_messages() deserializes stored messages."""
+    producer = MockProducer()
+    producer.send_json("events", {"id": 1})
+    producer.send_json("events", {"id": 2})
+    msgs = producer.get_json_messages("events")
+    assert msgs == [{"id": 1}, {"id": 2}]
+
+
+def test_add_string_message():
+    """MockConsumer.add_string_message() for string payloads."""
+    consumer = MockConsumer()
+    consumer.add_string_message("logs", "error: disk full")
+    msg = consumer.poll()
+    assert msg is not None
+    assert msg.value_as_string() == "error: disk full"
