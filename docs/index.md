@@ -12,9 +12,13 @@ Built on [confluent-kafka](https://github.com/confluentinc/confluent-kafka-pytho
 - **Async producer and consumer** via `asyncio`
 - **Retry utilities** with exponential backoff
 - **Pluggable serializers** (JSON, String, Avro/Schema Registry)
-- **Testing utilities** (MockProducer/MockConsumer) for unit tests
-- **Type-safe config builders** with validation
+- **Metrics collection** and statistics tracking (`KafkaMetrics`, `KafkaStats`)
+- **Dead letter queue** helper (`DeadLetterQueue`, `process_with_dlq`)
+- **Message headers** support on `send()`
+- **Testing utilities** (MockProducer/MockConsumer/MockDeadLetterQueue) with full API parity
+- **Type-safe config builders** with validation and security helpers (SASL, SSL)
 - **Admin client** for topic management
+- **Batch polling** and consumer offset management (seek, assign, position)
 
 ## Installation
 

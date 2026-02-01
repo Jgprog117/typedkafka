@@ -32,6 +32,8 @@ nav:
       - Config: api/config.md
       - Serializers: api/serializers.md
       - Retry: api/retry.md
+      - Metrics: api/metrics.md
+      - Dead Letter Queue: api/dlq.md
       - Testing: api/testing.md
       - Exceptions: api/exceptions.md
   - Changelog: changelog.md
