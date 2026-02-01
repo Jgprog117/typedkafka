@@ -24,6 +24,7 @@ from typedkafka.exceptions import (
 from typedkafka.metrics import KafkaMetrics, KafkaStats
 from typedkafka.producer import KafkaProducer, TransactionContext
 from typedkafka.retry import RetryPolicy, retry
+from typedkafka.telemetry import KafkaTracer
 from typedkafka.serializers import (
     Deserializer,
     JsonDeserializer,
@@ -66,5 +67,6 @@ __all__ = [
     "KafkaStats",
     "DeadLetterQueue",
     "process_with_dlq",
+    "KafkaTracer",
     "testing",
 ]
