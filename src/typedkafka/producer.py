@@ -157,9 +157,11 @@ class KafkaProducer:
                 "topic": topic,
                 "value": value,
                 "key": key,
-                "partition": partition,
-                "on_delivery": on_delivery,
             }
+            if partition is not None:
+                kwargs["partition"] = partition
+            if on_delivery is not None:
+                kwargs["on_delivery"] = on_delivery
             if headers is not None:
                 kwargs["headers"] = headers
             self._producer.produce(**kwargs)  # type: ignore[arg-type]

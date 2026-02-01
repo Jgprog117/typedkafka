@@ -54,7 +54,7 @@ class TestProducerWithMock:
         """Test send() calls underlying produce and poll."""
         producer.send("my-topic", b"value", key=b"key", partition=1)
         producer._producer.produce.assert_called_once_with(
-            topic="my-topic", value=b"value", key=b"key", partition=1, on_delivery=None
+            topic="my-topic", value=b"value", key=b"key", partition=1
         )
         producer._producer.poll.assert_called_once_with(0)
 
@@ -63,7 +63,7 @@ class TestProducerWithMock:
         cb = MagicMock()
         producer.send("topic", b"val", on_delivery=cb)
         producer._producer.produce.assert_called_once_with(
-            topic="topic", value=b"val", key=None, partition=None, on_delivery=cb
+            topic="topic", value=b"val", key=None, on_delivery=cb
         )
 
     def test_send_buffer_error_raises_producer_error(self, producer):

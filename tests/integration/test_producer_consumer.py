@@ -3,6 +3,8 @@
 Run with: KAFKA_BOOTSTRAP_SERVERS=localhost:9092 pytest tests/integration -v
 """
 
+import time
+
 from tests.integration.conftest import integration
 
 
@@ -55,13 +57,17 @@ class TestProducerConsumerIntegration:
 
         producer_config["transactional.id"] = f"test-txn-{unique_topic}"
         producer_config["enable.idempotence"] = True
+        producer_config["transaction.timeout.ms"] = 60000
 
         admin = KafkaAdmin(producer_config)
         admin.create_topic(unique_topic, num_partitions=1, replication_factor=1)
 
+        # Allow topic metadata to propagate before starting transactions
+        time.sleep(2)
+
         try:
             with KafkaProducer(producer_config) as producer:
-                producer.init_transactions()
+                producer.init_transactions(timeout=60)
 
                 with producer.transaction():
                     producer.send_json(unique_topic, {"txn": "message"})
