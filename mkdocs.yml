@@ -43,6 +43,9 @@ markdown_extensions:
       anchor_linenums: true
   - pymdownx.superfences
   - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
   - admonition
   - toc:
       permalink: true
