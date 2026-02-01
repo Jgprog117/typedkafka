@@ -146,6 +146,29 @@ class AsyncKafkaProducer:
         key_bytes = key.encode("utf-8") if key is not None else None
         await self.send(topic, value_bytes, key=key_bytes, partition=partition)
 
+    async def send_string(
+        self,
+        topic: str,
+        value: str,
+        key: Optional[str] = None,
+        partition: Optional[int] = None,
+    ) -> None:
+        """
+        Asynchronously send a UTF-8 encoded string message.
+
+        Args:
+            topic: The topic name.
+            value: String message to send.
+            key: Optional string key.
+            partition: Optional partition number.
+
+        Raises:
+            ProducerError: If the message cannot be queued.
+        """
+        value_bytes = value.encode("utf-8")
+        key_bytes = key.encode("utf-8") if key is not None else None
+        await self.send(topic, value_bytes, key=key_bytes, partition=partition)
+
     async def flush(self, timeout: float = -1) -> int:
         """
         Asynchronously wait for all queued messages to be delivered.
@@ -339,3 +362,75 @@ class AsyncKafkaConsumer:
             msg = await self.poll(timeout=self.poll_timeout)
             if msg is not None:
                 yield msg
+
+
+class MessageBatch:
+    """A batch of messages for efficient processing.
+
+    Attributes:
+        messages: The list of messages in this batch.
+
+    Examples:
+        >>> async for batch in batch_consume(consumer, batch_size=50):
+        ...     for msg in batch:
+        ...         process(msg)
+    """
+
+    def __init__(self, messages: list[KafkaMessage]):
+        self.messages = messages
+
+    def __len__(self) -> int:
+        return len(self.messages)
+
+    def __iter__(self):  # type: ignore[no-untyped-def]
+        return iter(self.messages)
+
+    @property
+    def topics(self) -> set[str]:
+        """Set of topics represented in this batch."""
+        return {m.topic for m in self.messages}
+
+
+async def batch_consume(
+    consumer: AsyncKafkaConsumer,
+    batch_size: int = 100,
+    batch_timeout: float = 1.0,
+) -> AsyncIterator[MessageBatch]:
+    """Consume messages in batches from an async consumer.
+
+    Collects messages into batches of up to ``batch_size`` or until
+    ``batch_timeout`` seconds have elapsed since the batch started,
+    whichever comes first.
+
+    Args:
+        consumer: The async consumer to read from.
+        batch_size: Maximum messages per batch.
+        batch_timeout: Maximum seconds to wait for a full batch.
+
+    Yields:
+        MessageBatch containing up to batch_size messages.
+
+    Examples:
+        >>> async with AsyncKafkaConsumer(config) as consumer:
+        ...     consumer.subscribe(["events"])
+        ...     async for batch in batch_consume(consumer, batch_size=50):
+        ...         print(f"Processing {len(batch)} messages")
+        ...         for msg in batch:
+        ...             process(msg)
+    """
+    batch: list[KafkaMessage] = []
+    loop = asyncio.get_event_loop()
+    batch_start = loop.time()
+
+    async for msg in consumer:
+        batch.append(msg)
+
+        elapsed = loop.time() - batch_start
+        if len(batch) >= batch_size or elapsed >= batch_timeout:
+            yield MessageBatch(batch)
+            batch = []
+            batch_start = loop.time()
+
+    # Yield remaining messages
+    if batch:
+        yield MessageBatch(batch)
