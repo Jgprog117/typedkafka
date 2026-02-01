@@ -15,7 +15,7 @@ except ImportError:
     ConfluentProducer = None  # type: ignore[assignment,misc]
     ConfluentKafkaError = None  # type: ignore[assignment,misc]
 
-from typedkafka.exceptions import ProducerError, SerializationError
+from typedkafka.exceptions import ProducerError, SerializationError, TransactionError
 from typedkafka.metrics import KafkaMetrics, StatsCallback, make_stats_cb
 
 #: Type alias for delivery report callbacks.
@@ -395,7 +395,7 @@ class KafkaProducer:
             timeout: Maximum time to wait for initialization in seconds.
 
         Raises:
-            ProducerError: If transaction initialization fails.
+            TransactionError: If transaction initialization fails.
 
         Examples:
             >>> producer = KafkaProducer({
@@ -407,7 +407,7 @@ class KafkaProducer:
         try:
             self._producer.init_transactions(timeout)
         except Exception as e:
-            raise ProducerError(
+            raise TransactionError(
                 f"Failed to initialize transactions: {e}",
                 original_error=e,
             ) from e
@@ -417,12 +417,12 @@ class KafkaProducer:
         Begin a new transaction.
 
         Raises:
-            ProducerError: If beginning the transaction fails.
+            TransactionError: If beginning the transaction fails.
         """
         try:
             self._producer.begin_transaction()
         except Exception as e:
-            raise ProducerError(
+            raise TransactionError(
                 f"Failed to begin transaction: {e}",
                 original_error=e,
             ) from e
@@ -435,12 +435,12 @@ class KafkaProducer:
             timeout: Maximum time to wait for commit in seconds.
 
         Raises:
-            ProducerError: If committing the transaction fails.
+            TransactionError: If committing the transaction fails.
         """
         try:
             self._producer.commit_transaction(timeout)
         except Exception as e:
-            raise ProducerError(
+            raise TransactionError(
                 f"Failed to commit transaction: {e}",
                 original_error=e,
             ) from e
@@ -453,12 +453,12 @@ class KafkaProducer:
             timeout: Maximum time to wait for abort in seconds.
 
         Raises:
-            ProducerError: If aborting the transaction fails.
+            TransactionError: If aborting the transaction fails.
         """
         try:
             self._producer.abort_transaction(timeout)
         except Exception as e:
-            raise ProducerError(
+            raise TransactionError(
                 f"Failed to abort transaction: {e}",
                 original_error=e,
             ) from e

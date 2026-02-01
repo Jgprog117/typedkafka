@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from typedkafka.exceptions import ProducerError, SerializationError
+from typedkafka.exceptions import ProducerError, SerializationError, TransactionError
 
 
 class TestProducerAPI:
@@ -163,7 +163,7 @@ class TestProducerWithMock:
     def test_init_transactions_error(self, producer):
         """Test init_transactions() wraps errors."""
         producer._producer.init_transactions.side_effect = RuntimeError("fail")
-        with pytest.raises(ProducerError, match="Failed to initialize transactions"):
+        with pytest.raises(TransactionError, match="Failed to initialize transactions"):
             producer.init_transactions()
 
     def test_begin_transaction(self, producer):
@@ -174,7 +174,7 @@ class TestProducerWithMock:
     def test_begin_transaction_error(self, producer):
         """Test begin_transaction() wraps errors."""
         producer._producer.begin_transaction.side_effect = RuntimeError("fail")
-        with pytest.raises(ProducerError, match="Failed to begin transaction"):
+        with pytest.raises(TransactionError, match="Failed to begin transaction"):
             producer.begin_transaction()
 
     def test_commit_transaction(self, producer):
@@ -185,7 +185,7 @@ class TestProducerWithMock:
     def test_commit_transaction_error(self, producer):
         """Test commit_transaction() wraps errors."""
         producer._producer.commit_transaction.side_effect = RuntimeError("fail")
-        with pytest.raises(ProducerError, match="Failed to commit transaction"):
+        with pytest.raises(TransactionError, match="Failed to commit transaction"):
             producer.commit_transaction()
 
     def test_abort_transaction(self, producer):
@@ -196,7 +196,7 @@ class TestProducerWithMock:
     def test_abort_transaction_error(self, producer):
         """Test abort_transaction() wraps errors."""
         producer._producer.abort_transaction.side_effect = RuntimeError("fail")
-        with pytest.raises(ProducerError, match="Failed to abort transaction"):
+        with pytest.raises(TransactionError, match="Failed to abort transaction"):
             producer.abort_transaction()
 
     def test_transaction_returns_context(self, producer):

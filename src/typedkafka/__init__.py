@@ -5,6 +5,8 @@ Built on confluent-kafka with comprehensive docstrings, full type hints,
 and a modern Pythonic API.
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 # Testing utilities in separate namespace
 from typedkafka import testing
 from typedkafka.admin import AdminError, KafkaAdmin, TopicConfig
@@ -12,10 +14,12 @@ from typedkafka.config import ConsumerConfig, ProducerConfig
 from typedkafka.consumer import KafkaConsumer, KafkaMessage
 from typedkafka.dlq import DeadLetterQueue, process_with_dlq
 from typedkafka.exceptions import (
+    ConfigurationError,
     ConsumerError,
     KafkaError,
     ProducerError,
     SerializationError,
+    TransactionError,
 )
 from typedkafka.metrics import KafkaMetrics, KafkaStats
 from typedkafka.producer import KafkaProducer, TransactionContext
@@ -29,7 +33,11 @@ from typedkafka.serializers import (
     StringSerializer,
 )
 
-__version__ = "0.5.0"
+try:
+    __version__ = version("typedkafka")
+except PackageNotFoundError:
+    __version__ = "0.5.0"
+
 __all__ = [
     "KafkaProducer",
     "KafkaConsumer",
@@ -42,6 +50,8 @@ __all__ = [
     "ProducerError",
     "ConsumerError",
     "SerializationError",
+    "ConfigurationError",
+    "TransactionError",
     "AdminError",
     "TransactionContext",
     "retry",
