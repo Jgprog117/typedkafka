@@ -9,6 +9,9 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
 
+from typedkafka.exceptions import ProducerError, SerializationError, TransactionError
+from typedkafka.metrics import KafkaMetrics, StatsCallback, make_stats_cb
+
 if TYPE_CHECKING:
     from typedkafka.logging import KafkaLogger
     from typedkafka.topics import TypedTopic
@@ -22,9 +25,6 @@ except ImportError:
     # Make confluent-kafka optional for documentation/type checking
     ConfluentProducer = None  # type: ignore[assignment,misc]
     ConfluentKafkaError = None  # type: ignore[assignment,misc]
-
-from typedkafka.exceptions import ProducerError, SerializationError, TransactionError
-from typedkafka.metrics import KafkaMetrics, StatsCallback, make_stats_cb
 
 #: Type alias for delivery report callbacks.
 #: The callback receives an optional error and the message object.
