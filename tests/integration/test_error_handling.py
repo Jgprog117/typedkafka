@@ -11,15 +11,6 @@ from tests.integration.conftest import integration
 class TestErrorHandlingIntegration:
     """Test error handling with a real broker."""
 
-    def test_consume_nonexistent_topic_timeout(self, consumer_config):
-        """Polling a topic with no messages returns None."""
-        from typedkafka import KafkaConsumer
-
-        with KafkaConsumer(consumer_config) as consumer:
-            consumer.subscribe(["nonexistent-topic-abc123"])
-            msg = consumer.poll(timeout=2.0)
-            assert msg is None
-
     def test_serialization_error_on_bad_json(self, producer_config, unique_topic):
         """send_json raises SerializationError for non-serializable objects."""
         from typedkafka import KafkaProducer

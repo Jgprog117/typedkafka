@@ -186,5 +186,5 @@ class TestConfigBuildersExtendedIntegration:
         )
         assert config["sasl.username"] == "user"
         assert config["sasl.password"] == "pass"
-        assert config["sasl.mechanism"] == "PLAIN"
+        assert config["sasl.mechanisms"] == "PLAIN"
         assert config["security.protocol"] == "SASL_PLAINTEXT"
