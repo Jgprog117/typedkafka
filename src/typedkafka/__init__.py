@@ -21,6 +21,7 @@ from typedkafka.exceptions import (
     SerializationError,
     TransactionError,
 )
+from typedkafka.logging import KafkaLogger, LogContext
 from typedkafka.metrics import KafkaMetrics, KafkaStats
 from typedkafka.producer import KafkaProducer, TransactionContext
 from typedkafka.retry import RetryPolicy, retry
@@ -33,6 +34,7 @@ from typedkafka.serializers import (
     StringSerializer,
 )
 from typedkafka.telemetry import KafkaTracer
+from typedkafka.topics import TypedTopic, json_topic, string_topic
 
 try:
     __version__ = version("typedkafka")
@@ -68,5 +70,10 @@ __all__ = [
     "DeadLetterQueue",
     "process_with_dlq",
     "KafkaTracer",
+    "TypedTopic",
+    "json_topic",
+    "string_topic",
+    "KafkaLogger",
+    "LogContext",
     "testing",
 ]

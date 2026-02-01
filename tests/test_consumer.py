@@ -148,6 +148,7 @@ class TestKafkaConsumerWithMock:
         c.poll_timeout = 1.0
         c._consumer = MagicMock()
         c._metrics = KafkaMetrics()
+        c._logger = None
         return c
 
     def test_subscribe(self, consumer):
@@ -308,6 +309,7 @@ class TestConsumerOffsetManagement:
         c.poll_timeout = 1.0
         c._consumer = MagicMock()
         c._metrics = KafkaMetrics()
+        c._logger = None
         return c
 
     def test_seek(self, consumer):

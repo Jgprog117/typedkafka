@@ -24,6 +24,7 @@ theme:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Cookbook: cookbook.md
   - API Reference:
       - Producer: api/producer.md
       - Consumer: api/consumer.md
@@ -35,6 +36,8 @@ nav:
       - Metrics: api/metrics.md
       - Dead Letter Queue: api/dlq.md
       - Testing: api/testing.md
+      - Topics: api/topics.md
+      - Logging: api/logging.md
       - Telemetry: api/telemetry.md
       - Protobuf: api/protobuf.md
       - Exceptions: api/exceptions.md

@@ -43,6 +43,7 @@ class TestProducerSendEdgeCases:
         p._metrics = MagicMock()
         p._metrics.messages_sent = 0
         p._metrics.errors = 0
+        p._logger = None
         return p
 
     def test_send_with_headers(self, producer):

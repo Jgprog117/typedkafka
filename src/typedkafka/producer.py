@@ -4,8 +4,16 @@ Kafka Producer with comprehensive documentation and full type safety.
 This module provides a well-documented, type-hinted wrapper around confluent-kafka's Producer.
 """
 
+from __future__ import annotations
+
 import json
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
+
+if TYPE_CHECKING:
+    from typedkafka.logging import KafkaLogger
+    from typedkafka.topics import TypedTopic
+
+T = TypeVar("T")
 
 try:
     from confluent_kafka import KafkaError as ConfluentKafkaError
@@ -54,7 +62,8 @@ class KafkaProducer:
     def __init__(
         self,
         config: dict[str, Any],
-        on_stats: Optional[StatsCallback] = None,
+        on_stats: StatsCallback | None = None,
+        logger: KafkaLogger | None = None,
     ):
         """
         Initialize a Kafka producer with the given configuration.
@@ -73,6 +82,7 @@ class KafkaProducer:
                 - statistics.interval.ms (int): Stats reporting interval in milliseconds
             on_stats: Optional callback receiving parsed KafkaStats each reporting interval.
                 Requires ``statistics.interval.ms`` to be set in config.
+            logger: Optional KafkaLogger for structured logging of producer operations.
 
         Raises:
             ProducerError: If the producer cannot be initialized with the given config
@@ -94,6 +104,7 @@ class KafkaProducer:
             )
 
         self._metrics = KafkaMetrics()
+        self._logger = logger
         self.config = config
         # Inject stats callback if stats interval is configured
         if config.get("statistics.interval.ms"):
@@ -119,10 +130,10 @@ class KafkaProducer:
         self,
         topic: str,
         value: bytes,
-        key: Optional[bytes] = None,
-        partition: Optional[int] = None,
-        on_delivery: Optional[DeliveryCallback] = None,
-        headers: Optional[list[tuple[str, bytes]]] = None,
+        key: bytes | None = None,
+        partition: int | None = None,
+        on_delivery: DeliveryCallback | None = None,
+        headers: list[tuple[str, bytes]] | None = None,
     ) -> None:
         """
         Send a message to a Kafka topic.
@@ -168,6 +179,12 @@ class KafkaProducer:
             # Poll to trigger callbacks and handle backpressure
             self._producer.poll(0)
             self._metrics.messages_sent += 1
+            if self._logger:
+                self._logger.log_send(
+                    topic=topic,
+                    key=key.decode("utf-8", errors="replace") if key else None,
+                    partition=partition,
+                )
         except BufferError as e:
             self._metrics.errors += 1
             raise ProducerError(
@@ -185,9 +202,9 @@ class KafkaProducer:
         self,
         topic: str,
         value: Any,
-        key: Optional[str] = None,
-        partition: Optional[int] = None,
-        on_delivery: Optional[DeliveryCallback] = None,
+        key: str | None = None,
+        partition: int | None = None,
+        on_delivery: DeliveryCallback | None = None,
     ) -> None:
         """
         Send a JSON-serialized message to a Kafka topic.
@@ -231,9 +248,9 @@ class KafkaProducer:
         self,
         topic: str,
         value: str,
-        key: Optional[str] = None,
-        partition: Optional[int] = None,
-        on_delivery: Optional[DeliveryCallback] = None,
+        key: str | None = None,
+        partition: int | None = None,
+        on_delivery: DeliveryCallback | None = None,
     ) -> None:
         """
         Send a UTF-8 encoded string message to a Kafka topic.
@@ -257,6 +274,77 @@ class KafkaProducer:
         value_bytes = value.encode("utf-8")
         key_bytes = key.encode("utf-8") if key is not None else None
         self.send(topic, value_bytes, key=key_bytes, partition=partition, on_delivery=on_delivery)
+
+    def send_typed(
+        self,
+        topic: TypedTopic[T],
+        value: T,
+        key: Any | None = None,
+        partition: int | None = None,
+        on_delivery: DeliveryCallback | None = None,
+        headers: list[tuple[str, bytes]] | None = None,
+    ) -> None:
+        """
+        Send a message to a typed topic using its configured serializers.
+
+        Provides compile-time type safety: the IDE will verify that ``value``
+        matches the topic's type parameter.
+
+        Args:
+            topic: A TypedTopic that specifies serialization.
+            value: The message value (must match the topic's type parameter).
+            key: Optional message key. Requires the topic to have a key_serializer.
+            partition: Optional partition number.
+            on_delivery: Optional delivery report callback.
+            headers: Optional message headers.
+
+        Raises:
+            SerializationError: If serialization fails or key provided without key_serializer.
+            ProducerError: If the message cannot be queued.
+
+        Examples:
+            >>> from typedkafka.topics import json_topic, string_topic
+            >>> events = json_topic("events")
+            >>> producer.send_typed(events, {"user_id": 123, "action": "click"})
+            >>>
+            >>> logs = string_topic("logs")
+            >>> producer.send_typed(logs, "Application started")
+        """
+        try:
+            value_bytes = topic.value_serializer.serialize(topic.name, value)
+        except Exception as e:
+            self._metrics.errors += 1
+            raise SerializationError(
+                f"Failed to serialize value for topic '{topic.name}': {e}",
+                value=value,
+                original_error=e,
+            ) from e
+
+        key_bytes: bytes | None = None
+        if key is not None:
+            if topic.key_serializer is None:
+                raise SerializationError(
+                    f"Topic '{topic.name}' has no key_serializer configured but a key was provided",
+                    value=key,
+                )
+            try:
+                key_bytes = topic.key_serializer.serialize(topic.name, key)
+            except Exception as e:
+                self._metrics.errors += 1
+                raise SerializationError(
+                    f"Failed to serialize key for topic '{topic.name}': {e}",
+                    value=key,
+                    original_error=e,
+                ) from e
+
+        self.send(
+            topic.name,
+            value_bytes,
+            key=key_bytes,
+            partition=partition,
+            on_delivery=on_delivery,
+            headers=headers,
+        )
 
     def flush(self, timeout: float = -1) -> int:
         """
@@ -329,8 +417,8 @@ class KafkaProducer:
     def send_batch(
         self,
         topic: str,
-        messages: list[tuple[bytes, Optional[bytes]]],
-        on_delivery: Optional[DeliveryCallback] = None,
+        messages: list[tuple[bytes, bytes | None]],
+        on_delivery: DeliveryCallback | None = None,
     ) -> None:
         """
         Send a batch of messages to a Kafka topic.
@@ -423,6 +511,8 @@ class KafkaProducer:
         """
         try:
             self._producer.begin_transaction()
+            if self._logger:
+                self._logger.log_transaction("begin")
         except Exception as e:
             raise TransactionError(
                 f"Failed to begin transaction: {e}",
@@ -441,6 +531,8 @@ class KafkaProducer:
         """
         try:
             self._producer.commit_transaction(timeout)
+            if self._logger:
+                self._logger.log_transaction("commit")
         except Exception as e:
             raise TransactionError(
                 f"Failed to commit transaction: {e}",
@@ -459,6 +551,8 @@ class KafkaProducer:
         """
         try:
             self._producer.abort_transaction(timeout)
+            if self._logger:
+                self._logger.log_transaction("abort")
         except Exception as e:
             raise TransactionError(
                 f"Failed to abort transaction: {e}",

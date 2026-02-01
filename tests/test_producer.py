@@ -48,6 +48,7 @@ class TestProducerWithMock:
         p.config = {"bootstrap.servers": "localhost:9092"}
         p._producer = MagicMock()
         p._metrics = KafkaMetrics()
+        p._logger = None
         return p
 
     def test_send_calls_produce(self, producer):

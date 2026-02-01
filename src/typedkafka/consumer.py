@@ -4,9 +4,15 @@ Kafka Consumer with comprehensive documentation and full type safety.
 This module provides a well-documented, type-hinted wrapper around confluent-kafka's Consumer.
 """
 
+from __future__ import annotations
+
 import json
 from collections.abc import Iterator
-from typing import Any, Callable, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
+
+if TYPE_CHECKING:
+    from typedkafka.logging import KafkaLogger
+    from typedkafka.topics import TypedTopic
 
 try:
     from confluent_kafka import Consumer as ConfluentConsumer
@@ -107,7 +113,7 @@ class KafkaMessage:
                 original_error=e,
             ) from e
 
-    def key_as_string(self, encoding: str = "utf-8") -> Optional[str]:
+    def key_as_string(self, encoding: str = "utf-8") -> str | None:
         """
         Decode the message key as a UTF-8 string.
 
@@ -169,6 +175,34 @@ class KafkaMessage:
                 original_error=e,
             ) from e
 
+    def decode(self, topic: TypedTopic[T]) -> T:
+        """
+        Decode the message value using a typed topic's deserializer.
+
+        Args:
+            topic: A TypedTopic that specifies deserialization.
+
+        Returns:
+            Deserialized value with the topic's type.
+
+        Raises:
+            SerializationError: If deserialization fails.
+
+        Examples:
+            >>> from typedkafka.topics import json_topic
+            >>> events = json_topic("events")
+            >>> msg = consumer.poll()
+            >>> data = msg.decode(events)  # type: Any
+        """
+        try:
+            return topic.value_deserializer.deserialize(topic.name, self.value)
+        except Exception as e:
+            raise SerializationError(
+                f"Failed to deserialize message from topic '{topic.name}': {e}",
+                value=self.value,
+                original_error=e,
+            ) from e
+
     def __repr__(self) -> str:
         """Return string representation of the message."""
         return (
@@ -212,8 +246,9 @@ class KafkaConsumer:
     def __init__(
         self,
         config: dict[str, Any],
-        on_stats: Optional[StatsCallback] = None,
-        value_deserializer: Optional[Callable[[bytes], Any]] = None,
+        on_stats: StatsCallback | None = None,
+        value_deserializer: Callable[[bytes], Any] | None = None,
+        logger: KafkaLogger | None = None,
     ):
         """
         Initialize a Kafka consumer with the given configuration.
@@ -232,6 +267,7 @@ class KafkaConsumer:
                 - statistics.interval.ms (int): Stats reporting interval in milliseconds
             on_stats: Optional callback receiving parsed KafkaStats each reporting interval.
                 Requires ``statistics.interval.ms`` to be set in config.
+            logger: Optional KafkaLogger for structured logging of consumer operations.
             value_deserializer: Optional function to automatically deserialize message
                 values. When set, use ``msg.value_as(deserializer)`` or the configured
                 deserializer will be available for typed consumption patterns.
@@ -261,6 +297,7 @@ class KafkaConsumer:
             )
 
         self._metrics = KafkaMetrics()
+        self._logger = logger
         self.config = config
         self.value_deserializer = value_deserializer
         self.poll_timeout: float = 1.0
@@ -286,9 +323,9 @@ class KafkaConsumer:
     def subscribe(
         self,
         topics: list[str],
-        on_assign: Optional[Callable[[Any, Any], None]] = None,
-        on_revoke: Optional[Callable[[Any, Any], None]] = None,
-        on_lost: Optional[Callable[[Any, Any], None]] = None,
+        on_assign: Callable[[Any, Any], None] | None = None,
+        on_revoke: Callable[[Any, Any], None] | None = None,
+        on_lost: Callable[[Any, Any], None] | None = None,
     ) -> None:
         """
         Subscribe to one or more topics.
@@ -334,7 +371,7 @@ class KafkaConsumer:
                 original_error=e,
             ) from e
 
-    def poll(self, timeout: float = 1.0) -> Optional[KafkaMessage]:
+    def poll(self, timeout: float = 1.0) -> KafkaMessage | None:
         """
         Poll for a single message.
 
@@ -371,7 +408,14 @@ class KafkaConsumer:
                 self._metrics.errors += 1
                 raise ConsumerError(f"Consumer error: {raw_msg.error()}")
             self._metrics.messages_received += 1
-            return KafkaMessage(raw_msg)
+            wrapped = KafkaMessage(raw_msg)
+            if self._logger:
+                self._logger.log_poll(
+                    topic=wrapped.topic,
+                    partition=wrapped.partition,
+                    offset=wrapped.offset,
+                )
+            return wrapped
         except ConsumerError:
             raise
         except Exception as e:
@@ -381,7 +425,7 @@ class KafkaConsumer:
                 original_error=e,
             ) from e
 
-    def commit(self, message: Optional[KafkaMessage] = None, asynchronous: bool = True) -> None:
+    def commit(self, message: KafkaMessage | None = None, asynchronous: bool = True) -> None:
         """
         Commit offsets to Kafka.
 
@@ -408,8 +452,16 @@ class KafkaConsumer:
         try:
             if message:
                 self._consumer.commit(message=message._message, asynchronous=asynchronous)  # type: ignore[call-overload]
+                if self._logger:
+                    self._logger.log_commit(
+                        topic=message.topic,
+                        partition=message.partition,
+                        offset=message.offset,
+                    )
             else:
                 self._consumer.commit(asynchronous=asynchronous)  # type: ignore[call-overload]
+                if self._logger:
+                    self._logger.log_commit()
         except Exception as e:
             raise ConsumerError(
                 f"Failed to commit offsets: {e}",
