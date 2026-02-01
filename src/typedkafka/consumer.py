@@ -11,11 +11,12 @@ from typing import Any, Callable, Optional
 try:
     from confluent_kafka import Consumer as ConfluentConsumer
     from confluent_kafka import KafkaError as ConfluentKafkaError
-    from confluent_kafka import Message
+    from confluent_kafka import Message, TopicPartition
 except ImportError:
     ConfluentConsumer = None  # type: ignore[assignment,misc]
     ConfluentKafkaError = None  # type: ignore[assignment,misc]
     Message = None  # type: ignore[assignment,misc]
+    TopicPartition = None  # type: ignore[assignment,misc]
 
 from typedkafka.exceptions import ConsumerError, SerializationError
 
@@ -349,6 +350,135 @@ class KafkaConsumer:
             raise ConsumerError(
                 f"Failed to commit offsets: {e}",
                 original_error=e,
+            ) from e
+
+    def poll_batch(
+        self, max_messages: int = 100, timeout: float = 1.0
+    ) -> list[KafkaMessage]:
+        """
+        Poll for a batch of messages.
+
+        Args:
+            max_messages: Maximum number of messages to return (default: 100)
+            timeout: Maximum time to wait in seconds (default: 1.0)
+
+        Returns:
+            List of KafkaMessage objects (may be empty if timeout expires)
+
+        Raises:
+            ConsumerError: If an error occurs during polling
+
+        Examples:
+            >>> messages = consumer.poll_batch(max_messages=50, timeout=2.0)
+            >>> for msg in messages:
+            ...     process(msg)
+        """
+        try:
+            raw_msgs = self._consumer.consume(
+                num_messages=max_messages, timeout=timeout
+            )
+            results = []
+            for raw_msg in raw_msgs:
+                if raw_msg.error():
+                    raise ConsumerError(f"Consumer error: {raw_msg.error()}")
+                results.append(KafkaMessage(raw_msg))
+            return results
+        except ConsumerError:
+            raise
+        except Exception as e:
+            raise ConsumerError(
+                f"Error in poll_batch: {e}",
+                original_error=e,
+            ) from e
+
+    def seek(self, partition: Any) -> None:
+        """
+        Seek to a specific offset on a partition.
+
+        Args:
+            partition: A TopicPartition object with topic, partition, and offset set.
+
+        Raises:
+            ConsumerError: If the seek fails
+
+        Examples:
+            >>> from confluent_kafka import TopicPartition
+            >>> consumer.seek(TopicPartition("my-topic", 0, 100))
+        """
+        try:
+            self._consumer.seek(partition)
+        except Exception as e:
+            raise ConsumerError(
+                f"Failed to seek: {e}", original_error=e
+            ) from e
+
+    def assignment(self) -> list[Any]:
+        """
+        Get the current partition assignment.
+
+        Returns:
+            List of TopicPartition objects currently assigned to this consumer.
+
+        Raises:
+            ConsumerError: If retrieving the assignment fails
+
+        Examples:
+            >>> partitions = consumer.assignment()
+            >>> for tp in partitions:
+            ...     print(f"{tp.topic} [{tp.partition}]")
+        """
+        try:
+            return self._consumer.assignment()  # type: ignore[no-any-return]
+        except Exception as e:
+            raise ConsumerError(
+                f"Failed to get assignment: {e}", original_error=e
+            ) from e
+
+    def assign(self, partitions: list[Any]) -> None:
+        """
+        Manually assign partitions to this consumer.
+
+        Args:
+            partitions: List of TopicPartition objects to assign.
+
+        Raises:
+            ConsumerError: If the assignment fails
+
+        Examples:
+            >>> from confluent_kafka import TopicPartition
+            >>> consumer.assign([TopicPartition("my-topic", 0), TopicPartition("my-topic", 1)])
+        """
+        try:
+            self._consumer.assign(partitions)
+        except Exception as e:
+            raise ConsumerError(
+                f"Failed to assign partitions: {e}", original_error=e
+            ) from e
+
+    def position(self, partitions: list[Any]) -> list[Any]:
+        """
+        Get the current position (offset) for the given partitions.
+
+        Args:
+            partitions: List of TopicPartition objects to query.
+
+        Returns:
+            List of TopicPartition objects with offset set to the current position.
+
+        Raises:
+            ConsumerError: If retrieving the position fails
+
+        Examples:
+            >>> from confluent_kafka import TopicPartition
+            >>> positions = consumer.position([TopicPartition("my-topic", 0)])
+            >>> for tp in positions:
+            ...     print(f"Offset: {tp.offset}")
+        """
+        try:
+            return self._consumer.position(partitions)  # type: ignore[no-any-return]
+        except Exception as e:
+            raise ConsumerError(
+                f"Failed to get position: {e}", original_error=e
             ) from e
 
     def close(self) -> None:

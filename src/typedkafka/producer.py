@@ -17,6 +17,10 @@ except ImportError:
 
 from typedkafka.exceptions import ProducerError, SerializationError
 
+#: Type alias for delivery report callbacks.
+#: The callback receives an optional error and the message object.
+DeliveryCallback = Callable[[Optional[Exception], Any], None]
+
 
 class KafkaProducer:
     """
@@ -96,7 +100,7 @@ class KafkaProducer:
         value: bytes,
         key: Optional[bytes] = None,
         partition: Optional[int] = None,
-        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+        on_delivery: Optional[DeliveryCallback] = None,
     ) -> None:
         """
         Send a message to a Kafka topic.
@@ -160,7 +164,7 @@ class KafkaProducer:
         value: Any,
         key: Optional[str] = None,
         partition: Optional[int] = None,
-        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+        on_delivery: Optional[DeliveryCallback] = None,
     ) -> None:
         """
         Send a JSON-serialized message to a Kafka topic.
@@ -206,7 +210,7 @@ class KafkaProducer:
         value: str,
         key: Optional[str] = None,
         partition: Optional[int] = None,
-        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+        on_delivery: Optional[DeliveryCallback] = None,
     ) -> None:
         """
         Send a UTF-8 encoded string message to a Kafka topic.
@@ -303,7 +307,7 @@ class KafkaProducer:
         self,
         topic: str,
         messages: list[tuple[bytes, Optional[bytes]]],
-        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+        on_delivery: Optional[DeliveryCallback] = None,
     ) -> None:
         """
         Send a batch of messages to a Kafka topic.

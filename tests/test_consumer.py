@@ -294,6 +294,116 @@ class TestKafkaConsumerWithMock:
         consumer._consumer.poll.assert_called_with(timeout=5.0)
 
 
+class TestConsumerOffsetManagement:
+    """Test KafkaConsumer offset management methods."""
+
+    @pytest.fixture
+    def consumer(self):
+        """Create a KafkaConsumer with a mocked internal consumer."""
+        c = KafkaConsumer.__new__(KafkaConsumer)
+        c.config = {"bootstrap.servers": "localhost:9092", "group.id": "test"}
+        c.poll_timeout = 1.0
+        c._consumer = MagicMock()
+        return c
+
+    def test_seek(self, consumer):
+        """Test seek() delegates to confluent consumer."""
+        tp = MagicMock()
+        consumer.seek(tp)
+        consumer._consumer.seek.assert_called_once_with(tp)
+
+    def test_seek_error(self, consumer):
+        """Test seek() wraps errors."""
+        consumer._consumer.seek.side_effect = RuntimeError("fail")
+        with pytest.raises(ConsumerError, match="Failed to seek"):
+            consumer.seek(MagicMock())
+
+    def test_assignment(self, consumer):
+        """Test assignment() delegates to confluent consumer."""
+        consumer._consumer.assignment.return_value = ["tp1", "tp2"]
+        result = consumer.assignment()
+        assert result == ["tp1", "tp2"]
+
+    def test_assignment_error(self, consumer):
+        """Test assignment() wraps errors."""
+        consumer._consumer.assignment.side_effect = RuntimeError("fail")
+        with pytest.raises(ConsumerError, match="Failed to get assignment"):
+            consumer.assignment()
+
+    def test_assign(self, consumer):
+        """Test assign() delegates to confluent consumer."""
+        partitions = [MagicMock(), MagicMock()]
+        consumer.assign(partitions)
+        consumer._consumer.assign.assert_called_once_with(partitions)
+
+    def test_assign_error(self, consumer):
+        """Test assign() wraps errors."""
+        consumer._consumer.assign.side_effect = RuntimeError("fail")
+        with pytest.raises(ConsumerError, match="Failed to assign"):
+            consumer.assign([])
+
+    def test_position(self, consumer):
+        """Test position() delegates to confluent consumer."""
+        partitions = [MagicMock()]
+        consumer._consumer.position.return_value = partitions
+        result = consumer.position(partitions)
+        assert result == partitions
+
+    def test_position_error(self, consumer):
+        """Test position() wraps errors."""
+        consumer._consumer.position.side_effect = RuntimeError("fail")
+        with pytest.raises(ConsumerError, match="Failed to get position"):
+            consumer.position([])
+
+    def test_poll_batch(self, consumer):
+        """Test poll_batch() returns wrapped messages."""
+        raw1 = MagicMock()
+        raw1.error.return_value = None
+        raw1.topic.return_value = "t"
+        raw1.partition.return_value = 0
+        raw1.offset.return_value = 0
+        raw1.key.return_value = None
+        raw1.value.return_value = b"v1"
+        raw1.timestamp.return_value = (0, 0)
+        raw1.headers.return_value = None
+
+        raw2 = MagicMock()
+        raw2.error.return_value = None
+        raw2.topic.return_value = "t"
+        raw2.partition.return_value = 0
+        raw2.offset.return_value = 1
+        raw2.key.return_value = None
+        raw2.value.return_value = b"v2"
+        raw2.timestamp.return_value = (0, 0)
+        raw2.headers.return_value = None
+
+        consumer._consumer.consume.return_value = [raw1, raw2]
+        results = consumer.poll_batch(max_messages=10, timeout=2.0)
+        assert len(results) == 2
+        assert isinstance(results[0], KafkaMessage)
+        assert results[0].value == b"v1"
+        assert results[1].value == b"v2"
+
+    def test_poll_batch_empty(self, consumer):
+        """Test poll_batch() returns empty list on timeout."""
+        consumer._consumer.consume.return_value = []
+        assert consumer.poll_batch() == []
+
+    def test_poll_batch_error(self, consumer):
+        """Test poll_batch() wraps errors."""
+        consumer._consumer.consume.side_effect = RuntimeError("fail")
+        with pytest.raises(ConsumerError, match="Error in poll_batch"):
+            consumer.poll_batch()
+
+    def test_poll_batch_message_error(self, consumer):
+        """Test poll_batch() raises on message error."""
+        raw = MagicMock()
+        raw.error.return_value = "some error"
+        consumer._consumer.consume.return_value = [raw]
+        with pytest.raises(ConsumerError, match="Consumer error"):
+            consumer.poll_batch()
+
+
 class TestConsumerInit:
     """Test KafkaConsumer initialization edge cases."""
 

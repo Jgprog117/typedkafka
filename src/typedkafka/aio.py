@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional
 
+from typedkafka.consumer import KafkaMessage
 from typedkafka.exceptions import ConsumerError, ProducerError, SerializationError
 
 try:
@@ -28,6 +29,12 @@ class AsyncKafkaProducer:
 
     Uses a thread pool to run confluent-kafka's synchronous operations
     without blocking the event loop.
+
+    Note:
+        This implementation uses a ThreadPoolExecutor to wrap synchronous
+        confluent-kafka calls. It does not provide true non-blocking async I/O.
+        Each blocking call is offloaded to a thread pool. For high-throughput
+        scenarios, consider tuning the executor's max_workers parameter.
 
     Examples:
         >>> async with AsyncKafkaProducer({"bootstrap.servers": "localhost:9092"}) as producer:
@@ -179,11 +186,17 @@ class AsyncKafkaConsumer:
     Uses a thread pool to run confluent-kafka's synchronous poll without
     blocking the event loop. Supports ``async for`` iteration.
 
+    Note:
+        This implementation uses a ThreadPoolExecutor to wrap synchronous
+        confluent-kafka calls. It does not provide true non-blocking async I/O.
+        Each blocking call is offloaded to a thread pool. For high-throughput
+        scenarios, consider tuning the executor's max_workers parameter.
+
     Examples:
         >>> async with AsyncKafkaConsumer(config) as consumer:
         ...     consumer.subscribe(["topic"])
         ...     async for msg in consumer:
-        ...         print(msg.value())
+        ...         print(msg.value_as_string())
 
     Attributes:
         config: The configuration dictionary used to initialize the consumer
@@ -237,7 +250,7 @@ class AsyncKafkaConsumer:
                 original_error=e,
             ) from e
 
-    async def poll(self, timeout: float = 1.0) -> Any:
+    async def poll(self, timeout: float = 1.0) -> Optional[KafkaMessage]:
         """
         Asynchronously poll for a single message.
 
@@ -245,7 +258,7 @@ class AsyncKafkaConsumer:
             timeout: Maximum time to wait in seconds.
 
         Returns:
-            A confluent-kafka Message, or None if timeout expired.
+            A KafkaMessage, or None if timeout expired.
 
         Raises:
             ConsumerError: If an error occurs during polling.
@@ -259,7 +272,7 @@ class AsyncKafkaConsumer:
                 return None
             if msg.error():
                 raise ConsumerError(f"Consumer error: {msg.error()}")
-            return msg
+            return KafkaMessage(msg)
         except ConsumerError:
             raise
         except Exception as e:
@@ -315,12 +328,12 @@ class AsyncKafkaConsumer:
         """Async context manager exit."""
         await self.close()
 
-    async def __aiter__(self) -> AsyncIterator[Any]:
+    async def __aiter__(self) -> AsyncIterator[KafkaMessage]:
         """
         Async iterate over messages indefinitely.
 
         Yields:
-            Messages as they arrive.
+            KafkaMessage objects as they arrive.
         """
         while True:
             msg = await self.poll(timeout=self.poll_timeout)

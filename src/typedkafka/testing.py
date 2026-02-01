@@ -5,8 +5,12 @@ This module provides mock implementations that don't require a running Kafka bro
 making it easy to write fast, reliable unit tests for code that uses Kafka.
 """
 
+import json as _json
 from collections import defaultdict
 from typing import Any, Callable, Optional
+
+#: Type alias for delivery report callbacks (matches producer.DeliveryCallback).
+DeliveryCallback = Callable[[Optional[Exception], Any], None]
 
 
 class MockMessage:
@@ -48,6 +52,83 @@ class MockMessage:
         self.partition = partition
         self.offset = offset
         self.headers = headers or []
+        self.timestamp_type = 0
+        self.timestamp = 0
+
+    def value_as_string(self, encoding: str = "utf-8") -> str:
+        """
+        Decode the message value as a string.
+
+        Args:
+            encoding: Character encoding to use (default: utf-8)
+
+        Returns:
+            Decoded string value
+
+        Raises:
+            SerializationError: If decoding fails
+        """
+        from typedkafka.exceptions import SerializationError
+
+        try:
+            return self.value.decode(encoding)
+        except (UnicodeDecodeError, AttributeError) as e:
+            raise SerializationError(
+                f"Failed to decode message value as {encoding} string: {e}",
+                value=self.value,
+                original_error=e,
+            ) from e
+
+    def value_as_json(self) -> Any:
+        """
+        Deserialize the message value as JSON.
+
+        Returns:
+            Parsed JSON object
+
+        Raises:
+            SerializationError: If JSON parsing fails
+        """
+        from typedkafka.exceptions import SerializationError
+
+        try:
+            return _json.loads(self.value.decode("utf-8"))
+        except (_json.JSONDecodeError, UnicodeDecodeError, AttributeError) as e:
+            raise SerializationError(
+                f"Failed to deserialize message value as JSON: {e}",
+                value=self.value,
+                original_error=e,
+            ) from e
+
+    def key_as_string(self, encoding: str = "utf-8") -> Optional[str]:
+        """
+        Decode the message key as a string.
+
+        Args:
+            encoding: Character encoding to use (default: utf-8)
+
+        Returns:
+            Decoded string key, or None if no key
+        """
+        if self.key is None:
+            return None
+        from typedkafka.exceptions import SerializationError
+
+        try:
+            return self.key.decode(encoding)
+        except (UnicodeDecodeError, AttributeError) as e:
+            raise SerializationError(
+                f"Failed to decode message key as {encoding} string: {e}",
+                value=self.key,
+                original_error=e,
+            ) from e
+
+    def __repr__(self) -> str:
+        """Return string representation of the message."""
+        return (
+            f"MockMessage(topic={self.topic!r}, partition={self.partition}, "
+            f"offset={self.offset}, key={self.key!r})"
+        )
 
 
 class MockProducer:
@@ -94,7 +175,7 @@ class MockProducer:
         value: bytes,
         key: Optional[bytes] = None,
         partition: Optional[int] = None,
-        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+        on_delivery: Optional[DeliveryCallback] = None,
     ) -> None:
         """
         Record a message send (doesn't actually send to Kafka).
@@ -137,7 +218,7 @@ class MockProducer:
         value: Any,
         key: Optional[str] = None,
         partition: Optional[int] = None,
-        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+        on_delivery: Optional[DeliveryCallback] = None,
     ) -> None:
         """
         Record a JSON message send.
@@ -156,9 +237,7 @@ class MockProducer:
             >>> data = json.loads(producer.messages["events"][0].value)
             >>> assert data["user_id"] == 123
         """
-        import json
-
-        value_bytes = json.dumps(value).encode("utf-8")
+        value_bytes = _json.dumps(value).encode("utf-8")
         key_bytes = key.encode("utf-8") if key else None
         self.send(topic, value_bytes, key=key_bytes, partition=partition, on_delivery=on_delivery)
 
@@ -168,7 +247,7 @@ class MockProducer:
         value: str,
         key: Optional[str] = None,
         partition: Optional[int] = None,
-        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+        on_delivery: Optional[DeliveryCallback] = None,
     ) -> None:
         """
         Record a string message send.
@@ -188,7 +267,7 @@ class MockProducer:
         self,
         topic: str,
         messages: list[tuple[bytes, Optional[bytes]]],
-        on_delivery: Optional[Callable[[Any, Any], None]] = None,
+        on_delivery: Optional[DeliveryCallback] = None,
     ) -> None:
         """
         Record a batch of message sends.
@@ -333,6 +412,7 @@ class MockConsumer:
         self._closed = False
         self._message_index = 0
         self.poll_timeout: float = 1.0
+        self._assignment: list[Any] = []
 
     def add_message(
         self,
@@ -395,18 +475,16 @@ class MockConsumer:
             >>> consumer = MockConsumer()
             >>> consumer.add_json_message("events", {"user_id": 123, "action": "click"})
         """
-        import json
-
-        value_bytes = json.dumps(value).encode("utf-8")
+        value_bytes = _json.dumps(value).encode("utf-8")
         key_bytes = key.encode("utf-8") if key else None
         self.add_message(topic, value_bytes, key=key_bytes, partition=partition)
 
     def subscribe(
         self,
         topics: list[str],
-        on_assign: Optional[Callable[[Any, Any], None]] = None,
-        on_revoke: Optional[Callable[[Any, Any], None]] = None,
-        on_lost: Optional[Callable[[Any, Any], None]] = None,
+        on_assign: Optional[DeliveryCallback] = None,
+        on_revoke: Optional[DeliveryCallback] = None,
+        on_lost: Optional[DeliveryCallback] = None,
     ) -> None:
         """
         Subscribe to topics (recorded but not enforced in mock).
@@ -478,6 +556,43 @@ class MockConsumer:
             key = (message.topic, message.partition)
             self.committed_offsets[key] = message.offset
 
+    def poll_batch(
+        self, max_messages: int = 100, timeout: float = 1.0
+    ) -> list["MockMessage"]:
+        """
+        Poll for a batch of messages.
+
+        Args:
+            max_messages: Maximum number of messages to return
+            timeout: Ignored in mock
+
+        Returns:
+            List of MockMessage objects
+        """
+        results: list[MockMessage] = []
+        for _ in range(max_messages):
+            msg = self.poll(timeout=timeout)
+            if msg is None:
+                break
+            results.append(msg)
+        return results
+
+    def seek(self, partition: Any) -> None:
+        """Seek to a specific offset (recorded but not enforced in mock)."""
+        pass
+
+    def assignment(self) -> list[Any]:
+        """Get the current partition assignment."""
+        return list(self._assignment)
+
+    def assign(self, partitions: list[Any]) -> None:
+        """Manually assign partitions."""
+        self._assignment = list(partitions)
+
+    def position(self, partitions: list[Any]) -> list[Any]:
+        """Get current position for partitions (returns input unchanged in mock)."""
+        return list(partitions)
+
     def close(self) -> None:
         """Mark consumer as closed."""
         self._closed = True
@@ -497,6 +612,7 @@ class MockConsumer:
         self.committed_offsets.clear()
         self._closed = False
         self._message_index = 0
+        self._assignment.clear()
 
     def __iter__(self):
         """

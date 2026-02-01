@@ -5,7 +5,22 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from typedkafka.aio import AsyncKafkaConsumer, AsyncKafkaProducer
+from typedkafka.consumer import KafkaMessage
 from typedkafka.exceptions import ConsumerError, ProducerError, SerializationError
+
+
+def _make_raw_msg(value=b"val", key=None, topic="t", partition=0, offset=0):
+    """Create a mock confluent-kafka Message with all required attributes."""
+    msg = MagicMock()
+    msg.error.return_value = None
+    msg.topic.return_value = topic
+    msg.partition.return_value = partition
+    msg.offset.return_value = offset
+    msg.key.return_value = key
+    msg.value.return_value = value
+    msg.timestamp.return_value = (0, 0)
+    msg.headers.return_value = None
+    return msg
 
 
 class TestAsyncKafkaProducerInit:
@@ -217,12 +232,12 @@ class TestAsyncKafkaConsumerMethods:
 
     @pytest.mark.asyncio
     async def test_poll_returns_message(self, consumer):
-        """Test poll() returns message on success."""
-        raw_msg = MagicMock()
-        raw_msg.error.return_value = None
+        """Test poll() returns KafkaMessage on success."""
+        raw_msg = _make_raw_msg(value=b"hello")
         consumer._consumer.poll.return_value = raw_msg
         msg = await consumer.poll(timeout=2.0)
-        assert msg is raw_msg
+        assert isinstance(msg, KafkaMessage)
+        assert msg.value == b"hello"
 
     @pytest.mark.asyncio
     async def test_poll_returns_none(self, consumer):
@@ -288,12 +303,10 @@ class TestAsyncKafkaConsumerMethods:
 
     @pytest.mark.asyncio
     async def test_aiter(self, consumer):
-        """Test async iteration yields messages."""
-        msg1 = MagicMock()
-        msg1.error.return_value = None
-        msg2 = MagicMock()
-        msg2.error.return_value = None
-        consumer._consumer.poll.side_effect = [msg1, msg2, None]
+        """Test async iteration yields KafkaMessage objects."""
+        raw1 = _make_raw_msg(value=b"v1")
+        raw2 = _make_raw_msg(value=b"v2")
+        consumer._consumer.poll.side_effect = [raw1, raw2, None]
 
         messages = []
         async for msg in consumer:
@@ -302,8 +315,9 @@ class TestAsyncKafkaConsumerMethods:
                 break
 
         assert len(messages) == 2
-        assert messages[0] is msg1
-        assert messages[1] is msg2
+        assert isinstance(messages[0], KafkaMessage)
+        assert messages[0].value == b"v1"
+        assert messages[1].value == b"v2"
 
 
 class TestAsyncDocumentation:
@@ -313,6 +327,7 @@ class TestAsyncDocumentation:
         """Verify AsyncKafkaProducer has docstrings."""
         assert AsyncKafkaProducer.__doc__ is not None
         assert "async" in AsyncKafkaProducer.__doc__.lower()
+        assert "ThreadPoolExecutor" in AsyncKafkaProducer.__doc__
 
     def test_producer_methods_have_docstrings(self):
         """Verify all async producer methods have docstrings."""
@@ -325,6 +340,7 @@ class TestAsyncDocumentation:
         """Verify AsyncKafkaConsumer has docstrings."""
         assert AsyncKafkaConsumer.__doc__ is not None
         assert "async" in AsyncKafkaConsumer.__doc__.lower()
+        assert "ThreadPoolExecutor" in AsyncKafkaConsumer.__doc__
 
     def test_consumer_methods_have_docstrings(self):
         """Verify all async consumer methods have docstrings."""

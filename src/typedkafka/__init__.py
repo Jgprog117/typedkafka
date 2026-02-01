@@ -9,7 +9,7 @@ and a modern Pythonic API.
 from typedkafka import testing
 from typedkafka.admin import AdminError, KafkaAdmin, TopicConfig
 from typedkafka.config import ConsumerConfig, ProducerConfig
-from typedkafka.consumer import KafkaConsumer
+from typedkafka.consumer import KafkaConsumer, KafkaMessage
 from typedkafka.exceptions import (
     ConsumerError,
     KafkaError,
@@ -31,6 +31,7 @@ __version__ = "0.3.3"
 __all__ = [
     "KafkaProducer",
     "KafkaConsumer",
+    "KafkaMessage",
     "KafkaAdmin",
     "ProducerConfig",
     "ConsumerConfig",

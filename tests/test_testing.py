@@ -432,3 +432,110 @@ class TestMockMessage:
         assert msg.partition == 0
         assert msg.offset == 0
         assert msg.headers == []
+        assert msg.timestamp == 0
+        assert msg.timestamp_type == 0
+
+    def test_value_as_string(self):
+        """Test MockMessage.value_as_string()."""
+        msg = MockMessage(topic="t", value=b"hello world")
+        assert msg.value_as_string() == "hello world"
+
+    def test_value_as_string_custom_encoding(self):
+        """Test MockMessage.value_as_string() with custom encoding."""
+        msg = MockMessage(topic="t", value=b"hello")
+        assert msg.value_as_string(encoding="ascii") == "hello"
+
+    def test_value_as_json(self):
+        """Test MockMessage.value_as_json()."""
+        msg = MockMessage(topic="t", value=b'{"user_id": 123}')
+        data = msg.value_as_json()
+        assert data == {"user_id": 123}
+
+    def test_value_as_json_list(self):
+        """Test MockMessage.value_as_json() with list."""
+        msg = MockMessage(topic="t", value=b"[1, 2, 3]")
+        assert msg.value_as_json() == [1, 2, 3]
+
+    def test_value_as_json_invalid_raises(self):
+        """Test MockMessage.value_as_json() raises on invalid JSON."""
+        from typedkafka.exceptions import SerializationError
+
+        msg = MockMessage(topic="t", value=b"not json")
+        with pytest.raises(SerializationError):
+            msg.value_as_json()
+
+    def test_key_as_string(self):
+        """Test MockMessage.key_as_string()."""
+        msg = MockMessage(topic="t", value=b"v", key=b"my-key")
+        assert msg.key_as_string() == "my-key"
+
+    def test_key_as_string_none(self):
+        """Test MockMessage.key_as_string() returns None when key is None."""
+        msg = MockMessage(topic="t", value=b"v")
+        assert msg.key_as_string() is None
+
+    def test_repr(self):
+        """Test MockMessage.__repr__()."""
+        msg = MockMessage(topic="t", value=b"v", key=b"k", partition=1, offset=42)
+        r = repr(msg)
+        assert "MockMessage" in r
+        assert "t" in r
+        assert "42" in r
+
+
+class TestMockConsumerOffsetManagement:
+    """Test MockConsumer offset management methods."""
+
+    def test_assign(self):
+        """Test assign() stores partitions."""
+        consumer = MockConsumer()
+        consumer.assign(["tp1", "tp2"])
+        assert consumer.assignment() == ["tp1", "tp2"]
+
+    def test_assignment_returns_copy(self):
+        """Test assignment() returns a copy."""
+        consumer = MockConsumer()
+        consumer.assign(["tp1"])
+        result = consumer.assignment()
+        result.append("tp2")
+        assert consumer.assignment() == ["tp1"]
+
+    def test_seek_does_not_raise(self):
+        """Test seek() is a no-op but doesn't raise."""
+        consumer = MockConsumer()
+        consumer.seek("some_partition")
+
+    def test_position_returns_input(self):
+        """Test position() returns a copy of input."""
+        consumer = MockConsumer()
+        result = consumer.position(["tp1"])
+        assert result == ["tp1"]
+
+    def test_poll_batch(self):
+        """Test poll_batch() returns multiple messages."""
+        consumer = MockConsumer()
+        consumer.add_message("topic", b"v1")
+        consumer.add_message("topic", b"v2")
+        consumer.add_message("topic", b"v3")
+
+        batch = consumer.poll_batch(max_messages=2)
+        assert len(batch) == 2
+        assert batch[0].value == b"v1"
+        assert batch[1].value == b"v2"
+
+        # Remaining message
+        batch2 = consumer.poll_batch(max_messages=10)
+        assert len(batch2) == 1
+        assert batch2[0].value == b"v3"
+
+    def test_poll_batch_empty(self):
+        """Test poll_batch() returns empty list when no messages."""
+        consumer = MockConsumer()
+        assert consumer.poll_batch() == []
+
+    def test_reset_clears_assignment(self):
+        """Test reset() clears assignment."""
+        consumer = MockConsumer()
+        consumer.assign(["tp1"])
+        consumer.reset()
+        assert consumer.assignment() == []

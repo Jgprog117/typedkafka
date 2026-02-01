@@ -5,14 +5,99 @@ Provides fluent API for building Kafka configurations with IDE autocomplete
 and validation, preventing common configuration errors.
 """
 
-from typing import Any, Literal, Union
+from typing import Any, Literal, Optional, Union
 
 _VALID_ACKS = {"0", "1", "all", 0, 1, -1}
 _VALID_COMPRESSIONS = {"none", "gzip", "snappy", "lz4", "zstd"}
 _VALID_OFFSET_RESETS = {"earliest", "latest", "none"}
 
 
-class ProducerConfig:
+class _SecurityConfigMixin:
+    """Mixin providing security configuration helpers for Kafka config builders."""
+
+    _config: dict[str, Any]
+
+    def sasl_plain(self, username: str, password: str) -> "_SecurityConfigMixin":
+        """
+        Configure SASL/PLAIN authentication.
+
+        Sets security.protocol to SASL_PLAINTEXT and configures credentials.
+
+        Args:
+            username: SASL username
+            password: SASL password
+
+        Returns:
+            Self for method chaining
+
+        Examples:
+            >>> config = ProducerConfig().bootstrap_servers("broker:9092").sasl_plain("user", "pass").build()
+        """
+        self._config["security.protocol"] = "SASL_PLAINTEXT"
+        self._config["sasl.mechanisms"] = "PLAIN"
+        self._config["sasl.username"] = username
+        self._config["sasl.password"] = password
+        return self
+
+    def sasl_scram(
+        self,
+        username: str,
+        password: str,
+        mechanism: str = "SCRAM-SHA-256",
+    ) -> "_SecurityConfigMixin":
+        """
+        Configure SASL/SCRAM authentication over SSL.
+
+        Args:
+            username: SASL username
+            password: SASL password
+            mechanism: SCRAM mechanism (default: "SCRAM-SHA-256")
+
+        Returns:
+            Self for method chaining
+
+        Examples:
+            >>> config = ProducerConfig().bootstrap_servers("broker:9093").sasl_scram("user", "pass").build()
+        """
+        self._config["security.protocol"] = "SASL_SSL"
+        self._config["sasl.mechanisms"] = mechanism
+        self._config["sasl.username"] = username
+        self._config["sasl.password"] = password
+        return self
+
+    def ssl(
+        self,
+        ca_location: str,
+        cert_location: Optional[str] = None,
+        key_location: Optional[str] = None,
+    ) -> "_SecurityConfigMixin":
+        """
+        Configure SSL/TLS encryption.
+
+        Args:
+            ca_location: Path to CA certificate file
+            cert_location: Optional path to client certificate file
+            key_location: Optional path to client key file
+
+        Returns:
+            Self for method chaining
+
+        Examples:
+            >>> config = (ProducerConfig()
+            ...     .bootstrap_servers("broker:9093")
+            ...     .ssl("/path/to/ca.pem", "/path/to/cert.pem", "/path/to/key.pem")
+            ...     .build())
+        """
+        self._config["security.protocol"] = "SSL"
+        self._config["ssl.ca.location"] = ca_location
+        if cert_location:
+            self._config["ssl.certificate.location"] = cert_location
+        if key_location:
+            self._config["ssl.key.location"] = key_location
+        return self
+
+
+class ProducerConfig(_SecurityConfigMixin):
     """
     Type-safe builder for Kafka producer configuration.
 
@@ -202,12 +287,18 @@ class ProducerConfig:
         self._config[key] = value
         return self
 
-    def build(self) -> dict[str, Any]:
+    def build(self, validate: bool = False) -> dict[str, Any]:
         """
         Build and return the configuration dictionary.
 
+        Args:
+            validate: If True, verify that required fields (bootstrap.servers) are set.
+
         Returns:
             Configuration dict ready for KafkaProducer
+
+        Raises:
+            ValueError: If validate is True and required fields are missing.
 
         Examples:
             >>> config = (ProducerConfig()
@@ -217,10 +308,13 @@ class ProducerConfig:
             >>> from typedkafka import KafkaProducer
             >>> producer = KafkaProducer(config)
         """
+        if validate:
+            if "bootstrap.servers" not in self._config:
+                raise ValueError("bootstrap.servers is required")
         return self._config.copy()
 
 
-class ConsumerConfig:
+class ConsumerConfig(_SecurityConfigMixin):
     """
     Type-safe builder for Kafka consumer configuration.
 
@@ -395,11 +489,23 @@ class ConsumerConfig:
         self._config[key] = value
         return self
 
-    def build(self) -> dict[str, Any]:
+    def build(self, validate: bool = False) -> dict[str, Any]:
         """
         Build and return the configuration dictionary.
 
+        Args:
+            validate: If True, verify that required fields (bootstrap.servers, group.id)
+                are set.
+
         Returns:
             Configuration dict ready for KafkaConsumer
+
+        Raises:
+            ValueError: If validate is True and required fields are missing.
         """
+        if validate:
+            if "bootstrap.servers" not in self._config:
+                raise ValueError("bootstrap.servers is required")
+            if "group.id" not in self._config:
+                raise ValueError("group.id is required")
         return self._config.copy()

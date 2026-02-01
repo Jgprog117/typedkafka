@@ -107,6 +107,48 @@ class TestProducerConfig:
         config = ProducerConfig().build()
         assert config == {}
 
+    def test_build_validated_missing_bootstrap(self):
+        """Test build(validate=True) raises when bootstrap.servers missing."""
+        with pytest.raises(ValueError, match="bootstrap.servers"):
+            ProducerConfig().acks("all").build(validate=True)
+
+    def test_build_validated_passes(self):
+        """Test build(validate=True) passes with required fields."""
+        config = ProducerConfig().bootstrap_servers("localhost:9092").build(validate=True)
+        assert config["bootstrap.servers"] == "localhost:9092"
+
+    def test_sasl_plain(self):
+        """Test SASL/PLAIN configuration."""
+        config = ProducerConfig().sasl_plain("user", "pass").build()
+        assert config["security.protocol"] == "SASL_PLAINTEXT"
+        assert config["sasl.mechanisms"] == "PLAIN"
+        assert config["sasl.username"] == "user"
+        assert config["sasl.password"] == "pass"
+
+    def test_sasl_scram(self):
+        """Test SASL/SCRAM configuration."""
+        config = ProducerConfig().sasl_scram("user", "pass").build()
+        assert config["security.protocol"] == "SASL_SSL"
+        assert config["sasl.mechanisms"] == "SCRAM-SHA-256"
+
+    def test_sasl_scram_custom_mechanism(self):
+        """Test SASL/SCRAM with custom mechanism."""
+        config = ProducerConfig().sasl_scram("u", "p", mechanism="SCRAM-SHA-512").build()
+        assert config["sasl.mechanisms"] == "SCRAM-SHA-512"
+
+    def test_ssl(self):
+        """Test SSL configuration."""
+        config = ProducerConfig().ssl("/ca.pem").build()
+        assert config["security.protocol"] == "SSL"
+        assert config["ssl.ca.location"] == "/ca.pem"
+        assert "ssl.certificate.location" not in config
+
+    def test_ssl_with_client_cert(self):
+        """Test SSL with client certificate."""
+        config = ProducerConfig().ssl("/ca.pem", "/cert.pem", "/key.pem").build()
+        assert config["ssl.certificate.location"] == "/cert.pem"
+        assert config["ssl.key.location"] == "/key.pem"
+
 
 class TestConsumerConfig:
     """Test ConsumerConfig builder."""
@@ -206,3 +248,43 @@ class TestConsumerConfig:
         """Test building empty config."""
         config = ConsumerConfig().build()
         assert config == {}
+
+    def test_build_validated_missing_bootstrap(self):
+        """Test build(validate=True) raises when bootstrap.servers missing."""
+        with pytest.raises(ValueError, match="bootstrap.servers"):
+            ConsumerConfig().group_id("test").build(validate=True)
+
+    def test_build_validated_missing_group_id(self):
+        """Test build(validate=True) raises when group.id missing."""
+        with pytest.raises(ValueError, match="group.id"):
+            ConsumerConfig().bootstrap_servers("localhost:9092").build(validate=True)
+
+    def test_build_validated_passes(self):
+        """Test build(validate=True) passes with required fields."""
+        config = (
+            ConsumerConfig()
+            .bootstrap_servers("localhost:9092")
+            .group_id("test")
+            .build(validate=True)
+        )
+        assert config["bootstrap.servers"] == "localhost:9092"
+        assert config["group.id"] == "test"
+
+    def test_sasl_plain(self):
+        """Test SASL/PLAIN configuration."""
+        config = ConsumerConfig().sasl_plain("user", "pass").build()
+        assert config["security.protocol"] == "SASL_PLAINTEXT"
+        assert config["sasl.mechanisms"] == "PLAIN"
+
+    def test_sasl_scram(self):
+        """Test SASL/SCRAM configuration."""
+        config = ConsumerConfig().sasl_scram("user", "pass").build()
+        assert config["security.protocol"] == "SASL_SSL"
+        assert config["sasl.mechanisms"] == "SCRAM-SHA-256"
+
+    def test_ssl(self):
+        """Test SSL configuration."""
+        config = ConsumerConfig().ssl("/ca.pem", "/cert.pem").build()
+        assert config["security.protocol"] == "SSL"
+        assert config["ssl.ca.location"] == "/ca.pem"
+        assert config["ssl.certificate.location"] == "/cert.pem"
